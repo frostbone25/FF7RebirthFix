@@ -1,6 +1,9 @@
 ﻿#include "stdafx.h"
 #include "helper.hpp"
 
+#include "SDK/Engine_classes.hpp"
+//#include "SDK/UMG_classes.hpp"
+
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <inipp/inipp.h>
@@ -41,10 +44,12 @@ float fHUDHeightOffset;
 bool bFixAspect;
 bool bFixHUD;
 bool bCutsceneFPS;
+bool bEnableConsole;
 
 // Variables
 int iCurrentResX;
 int iCurrentResY;
+SDK::UEngine* Engine = nullptr;
 
 void Logging()
 {
@@ -173,8 +178,8 @@ void UpdateOffsets()
     if (GObjectsScanResult) {
         spdlog::info("Offsets: GObjects: Address is {:s}+{:x}", sExeName.c_str(), GObjectsScanResult - (std::uint8_t*)exeModule);
         std::uint8_t* GObjectsAddr = Memory::GetAbsolute(GObjectsScanResult + 0x3);
-        //SDK::Offsets::GObjects = static_cast<UC::uint32>(GObjectsAddr - (std::uint8_t*)exeModule);
-        //spdlog::info("Offsets: GObjects: {:x}", SDK::Offsets::GObjects);
+        SDK::Offsets::GObjects = static_cast<UC::uint32>(GObjectsAddr - (std::uint8_t*)exeModule);
+        spdlog::info("Offsets: GObjects: {:x}", SDK::Offsets::GObjects);
     }
     else {
         spdlog::error("Offsets: GObjects: Pattern scan failed.");
@@ -185,20 +190,19 @@ void UpdateOffsets()
     if (GNamesScanResult) {
         spdlog::info("Offsets: GNames: Address is {:s}+{:x}", sExeName.c_str(), GNamesScanResult - (std::uint8_t*)exeModule);
         std::uint8_t* GNamesAddr = Memory::GetAbsolute(GNamesScanResult + 0x3);
-        //SDK::Offsets::GNames = static_cast<UC::uint32>(GNamesAddr - (std::uint8_t*)exeModule);
-        //spdlog::info("Offsets: GNames: {:x}", SDK::Offsets::GNames);
+        SDK::Offsets::GNames = static_cast<UC::uint32>(GNamesAddr - (std::uint8_t*)exeModule);
+        spdlog::info("Offsets: GNames: {:x}", SDK::Offsets::GNames);
     }
     else {
         spdlog::error("Offsets: GNames: Pattern scan failed.");
     }
 
     // ProcessEvent
-    std::uint8_t* ProcessEventScanResult = Memory::PatternScan(exeModule, "84 ?? 75 ?? 4C 8B ?? 48 8B ?? 48 8B ?? E8 ?? ?? ?? ?? 48 8B ?? ?? ?? 48 8B ?? ?? ?? 48 8B ?? ?? ?? 48 83 ?? ?? 5F C3");
+    std::uint8_t* ProcessEventScanResult = Memory::PatternScan(exeModule, "40 ?? 56 57 41 ?? 41 ?? 41 ?? 41 ?? B8 ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 ?? ?? 48 8D ?? ?? ?? 48 89 ?? ?? ?? ?? ?? 48 8B ?? ?? ?? ?? ?? 48 33 ?? 48 89 ?? ?? ?? ?? ?? 8B ?? ?? 45 33 ??");
     if (ProcessEventScanResult) {
         spdlog::info("Offsets: ProcessEvent: Address is {:s}+{:x}", sExeName.c_str(), ProcessEventScanResult - (std::uint8_t*)exeModule);
-        std::uint8_t* ProcessEventAddr = Memory::GetAbsolute(ProcessEventScanResult + 0xE);
-        //SDK::Offsets::ProcessEvent = static_cast<UC::uint32>(ProcessEventAddr - (std::uint8_t*)exeModule);
-        //spdlog::info("Offsets: ProcessEvent: {:x}", SDK::Offsets::ProcessEvent);
+        SDK::Offsets::ProcessEvent = static_cast<UC::uint32>(ProcessEventScanResult - (std::uint8_t*)exeModule);
+        spdlog::info("Offsets: ProcessEvent: {:x}", SDK::Offsets::ProcessEvent);
     }
     else {
         spdlog::error("Offsets: ProcessEvent: Pattern scan failed.");
@@ -211,6 +215,17 @@ void CurrentResolution()
 {
     // Grab desktop resolution
     DesktopDimensions = Util::GetPhysicalDesktopDimensions();
+
+    // Replace 3840x2160 option with desktop resolution
+    std::uint8_t* ResolutionListScanResult = Memory::PatternScan(exeModule, "C7 ?? ?? ?? 00 0F 00 00 C7 ?? ?? ?? 70 08 00 00");
+    if (ResolutionListScanResult) {
+        spdlog::info("Resolution List: Address is {:s}+{:x}", sExeName.c_str(), ResolutionListScanResult - (std::uint8_t*)exeModule);
+        Memory::Write(ResolutionListScanResult + 0x4, DesktopDimensions.first);
+        Memory::Write(ResolutionListScanResult + 0xC, DesktopDimensions.second);
+    }
+    else {
+        spdlog::error("Resolution List: Pattern scan failed.");
+    }
 
     // Get current resolution
     std::uint8_t* CurrentResolutionScanResult = Memory::PatternScan(exeModule, "89 ?? ?? ?? ?? ?? 8B ?? 89 ?? ?? ?? ?? ?? 89 ?? ?? ?? ?? ?? C6 ?? ?? ?? ?? ?? 00 E8 ?? ?? ?? ??");
@@ -285,7 +300,7 @@ void Framerate()
 
 void EnableConsole()
 {
-    /*
+    bEnableConsole = true;
     if (bEnableConsole) {
         // Get GEngine
         for (int i = 0; i < 200; ++i) { // 20s
@@ -301,8 +316,6 @@ void EnableConsole()
             spdlog::error("Enable Console: Failed to find GEngine address after 20 seconds.");
             return;
         }
-
-        spdlog::info("Enable Console: GEngine address = {:x}", (uintptr_t)Engine);
 
         // Check if console already exists
         if (Engine->GameViewport->ViewportConsole) {
@@ -335,7 +348,6 @@ void EnableConsole()
             spdlog::error("Enable Console: Failed to retrieve input settings.");
         }
     }
-    */
 }
 
 DWORD __stdcall Main(void*)
