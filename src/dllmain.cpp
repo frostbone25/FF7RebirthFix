@@ -169,7 +169,7 @@ void CalculateAspectRatio(bool bLog)
 void UpdateOffsets()
 {
     // GObjects
-    std::uint8_t* GObjectsScanResult = Memory::PatternScan(exeModule, "48 8B ?? ?? ?? ?? ?? 48 8B ?? ?? 48 8D ?? ?? EB ?? 33 ?? 8B ?? ?? C1 ??");
+    std::uint8_t* GObjectsScanResult = Memory::PatternScan(exeModule, "48 8B ?? ?? ?? ?? ?? 48 8B ?? ?? 48 8D ?? ?? EB ?? 33 ??");
     if (GObjectsScanResult) {
         spdlog::info("Offsets: GObjects: Address is {:s}+{:x}", sExeName.c_str(), GObjectsScanResult - (std::uint8_t*)exeModule);
         std::uint8_t* GObjectsAddr = Memory::GetAbsolute(GObjectsScanResult + 0x3);
@@ -180,16 +180,16 @@ void UpdateOffsets()
         spdlog::error("Offsets: GObjects: Pattern scan failed.");
     }
 
-    // AppendString
-    std::uint8_t* AppendStringScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? 39 ?? ?? ?? 48 8D ?? ?? ?? ?? ?? 41 ?? 01 00 00 00 48 8B ??");
-    if (AppendStringScanResult) {
-        spdlog::info("Offsets: AppendString: Address is {:s}+{:x}", sExeName.c_str(), AppendStringScanResult - (std::uint8_t*)exeModule);
-        std::uint8_t* AppendStringAddr = Memory::GetAbsolute(AppendStringScanResult + 0x1);
-        //SDK::Offsets::AppendString = static_cast<UC::uint32>(AppendStringAddr - (std::uint8_t*)exeModule);
-        //spdlog::info("Offsets: AppendString: {:x}", SDK::Offsets::AppendString);
+    // GNames
+    std::uint8_t* GNamesScanResult = Memory::PatternScan(exeModule, "48 8D ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? 4C 8B ?? C6 ?? ?? ?? ?? ?? 01");
+    if (GNamesScanResult) {
+        spdlog::info("Offsets: GNames: Address is {:s}+{:x}", sExeName.c_str(), GNamesScanResult - (std::uint8_t*)exeModule);
+        std::uint8_t* GNamesAddr = Memory::GetAbsolute(GNamesScanResult + 0x3);
+        //SDK::Offsets::GNames = static_cast<UC::uint32>(GNamesAddr - (std::uint8_t*)exeModule);
+        //spdlog::info("Offsets: GNames: {:x}", SDK::Offsets::GNames);
     }
     else {
-        spdlog::error("Offsets: AppendString: Pattern scan failed.");
+        spdlog::error("Offsets: GNames: Pattern scan failed.");
     }
 
     // ProcessEvent
@@ -213,16 +213,18 @@ void CurrentResolution()
     DesktopDimensions = Util::GetPhysicalDesktopDimensions();
 
     // Get current resolution
-    std::uint8_t* CurrentResolutionScanResult = Memory::PatternScan(exeModule, "8D ?? ?? 44 89 ?? ?? ?? ?? ?? 44 89 ?? ?? ?? ?? ?? 44 89 ?? ?? ?? ?? ?? 88 ?? ?? ?? ?? ??");
+    std::uint8_t* CurrentResolutionScanResult = Memory::PatternScan(exeModule, "89 ?? ?? ?? ?? ?? 8B ?? 89 ?? ?? ?? ?? ?? 89 ?? ?? ?? ?? ?? C6 ?? ?? ?? ?? ?? 00 E8 ?? ?? ?? ??");
     if (CurrentResolutionScanResult) {
         spdlog::info("Current Resolution: Address is {:s}+{:x}", sExeName.c_str(), CurrentResolutionScanResult - (std::uint8_t*)exeModule);
         static SafetyHookMid CurrentResolutionMidHook{};
         CurrentResolutionMidHook = safetyhook::create_mid(CurrentResolutionScanResult,
             [](SafetyHookContext& ctx) {
                 // Read resolution
-                int iResX = (int)ctx.r12;
-                int iResY = (int)ctx.r15;
-                int iScreenMode = (int)ctx.r14;
+                int iResX = (int)ctx.rsi;
+                int iResY = (int)ctx.rdi;
+
+                int iScreenMode = (int)ctx.rbx;
+                spdlog::info("Current Resolution: iScreenMode = {}", iScreenMode);
 
                 // If using borderless, use the desktop resolution
                 if (iScreenMode == 1) {
@@ -247,7 +249,7 @@ void AspectRatio()
 {
     if (bFixAspect) {
         // Aspect ratio / FOV
-        std::uint8_t* AspectRatioFOVScanResult = Memory::PatternScan(exeModule, "F3 0F ?? ?? ?? 8B ?? ?? ?? ?? ?? 89 ?? ?? 0F ?? ?? ?? ?? ?? ?? 33 ?? ??");
+        std::uint8_t* AspectRatioFOVScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? 8B ?? ?? ?? ?? ?? 89 ?? ?? 0F B6 ?? ?? ?? ?? ?? 33 ?? ?? 83 ?? 01");
         if (AspectRatioFOVScanResult) {
             spdlog::info("Aspect Ratio/FOV: Address is {:s}+{:x}", sExeName.c_str(), AspectRatioFOVScanResult - (std::uint8_t*)exeModule);
             static SafetyHookMid FOVMidHook{};
@@ -255,7 +257,7 @@ void AspectRatio()
                 [](SafetyHookContext& ctx) {
                     // Fix vert- FOV when wider than 16:9
                     if (fAspectRatio > fNativeAspect)
-                        ctx.xmm0.f32[0] = atanf(tanf(ctx.xmm0.f32[0] * (fPi / 360)) / fNativeAspect * fAspectRatio) * (360 / fPi);
+                        ctx.xmm1.f32[0] = atanf(tanf(ctx.xmm1.f32[0] * (fPi / 360)) / fNativeAspect * fAspectRatio) * (360 / fPi);
                 });
 
             static SafetyHookMid AspectRatioMidHook{};
@@ -273,73 +275,18 @@ void AspectRatio()
 
 void HUD()
 {
-    if (bFixHUD) {
-        // HUD Size
-        std::uint8_t* HUDSizeScanResult = Memory::PatternScan(exeModule, "45 33 ?? 48 8D ?? ?? ?? ?? ?? 44 89 ?? ?? 48 89 ?? ?? 33 ??");
-        if (HUDSizeScanResult) {
-            spdlog::info("HUD: Size: Address is {:s}+{:x}", sExeName.c_str(), HUDSizeScanResult - (std::uint8_t*)exeModule);
-            std::uint8_t* HUDSizeFunction = Memory::GetAbsolute(HUDSizeScanResult + 0x6);
-            spdlog::info("HUD: Size: Function address is {:s}+{:x}", sExeName.c_str(), HUDSizeFunction - (std::uint8_t*)exeModule);
-            if (HUDSizeFunction) {
-                static SafetyHookMid HUDSizeMidHook{};
-                HUDSizeMidHook = safetyhook::create_mid(HUDSizeFunction + 0x7,
-                    [](SafetyHookContext& ctx) {
-                        if (ctx.xmm0.f32[0] == 0.00f && ctx.xmm0.f32[1] == 0.00f && ctx.xmm0.f32[2] == 1.00f && ctx.xmm0.f32[3] == 1.00f) {
-                            // Resize to 16:9
-                            if (fAspectRatio > fNativeAspect) {
-                                ctx.xmm0.f32[0] = fHUDWidthOffset / (float)iCurrentResX;
-                                ctx.xmm0.f32[2] = 1.00f - ctx.xmm0.f32[0];
-                            }
-                            else if (fAspectRatio < fNativeAspect) {
-                                ctx.xmm0.f32[1] = fHUDHeightOffset / (float)iCurrentResY;
-                                ctx.xmm0.f32[3] = 1.00f - ctx.xmm0.f32[1];
-                            }
-                        }
-                    });
-            }
-        }
-        else {
-            spdlog::error("HUD: Size: Pattern scan failed.");
-        }
-    }
+   // TODO
 }
 
 void Framerate()
 {
-    if (bCutsceneFPS) {
-        // Remove framerate cap
-        std::uint8_t* FPSCapScanResult = Memory::PatternScan(exeModule, "73 ?? 80 ?? ?? ?? ?? ?? 00 74 ?? FF ?? ?? ?? ?? ?? 3B ?? ?? ?? ?? ??");
-        if (FPSCapScanResult) {
-            spdlog::info("FPS Cap: Address is {:s}+{:x}", sExeName.c_str(), FPSCapScanResult - (std::uint8_t*)exeModule);
-            Memory::Write(FPSCapScanResult, (BYTE)0xEB);
-            spdlog::info("FPS Cap: Patched instruction.");
-        }
-        else {
-            spdlog::error("FPS Cap: Pattern scan failed.");
-        }
-    }
+   // TODO
 }
 
 void EnableConsole()
 {
     /*
     if (bEnableConsole) {
-        // Allow setting read-only CVars
-        // FConsoleManager::ProcessUserConsoleInput
-        std::uint8_t* ReadOnlyCVarsScanResult = Memory::PatternScan(exeModule, "0F 84 ?? ?? ?? ?? 48 8B ?? 48 8B ?? FF ?? ?? A8 01");
-        if (ReadOnlyCVarsScanResult) {
-            spdlog::info("Enable Console: Read-only CVars: Address is {:s}+{:x}", sExeName.c_str(), ReadOnlyCVarsScanResult - (std::uint8_t*)exeModule);
-            static SafetyHookMid ReadOnlyCVarsMidHook{};
-            ReadOnlyCVarsMidHook = safetyhook::create_mid(ReadOnlyCVarsScanResult + 0x6,
-                [](SafetyHookContext& ctx) {
-                    if (ctx.rax + 0x18)
-                        *reinterpret_cast<BYTE*>(ctx.rax + 0x18) = 0;
-                });
-        }
-        else {
-            spdlog::error("Enable Console: Read-only CVars: Pattern scan failed.");
-        }
-
         // Get GEngine
         for (int i = 0; i < 200; ++i) { // 20s
             Engine = SDK::UEngine::GetEngine();
