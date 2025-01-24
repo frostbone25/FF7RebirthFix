@@ -330,7 +330,7 @@ void HUD()
             [](SafetyHookContext& ctx) {
                 if (!bMovieIsPlaying) {
                     if (fAspectRatio > fNativeAspect) {
-                        float WidthOffset = (3840.00f - (3840.00f / fAspectRatio) * fNativeAspect);
+                        float WidthOffset = 3840.00f - ((3840.00f / fAspectRatio) * fNativeAspect);
                         float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
 
                         *reinterpret_cast<float*>(ctx.rsp + 0x7C) = WidthOffset / 2.00f;
@@ -358,7 +358,7 @@ void HUD()
                         float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
                         float WidthMultiplier = 1.00f / 1080.00f;
 
-                        ctx.xmm0.f32[0] = (2160.00f - HeightOffset) * WidthMultiplier;
+                        ctx.xmm0.f32[0] = HeightOffset * WidthMultiplier;
                     }
                     else if (fAspectRatio < fNativeAspect) {
                         // TODO
@@ -371,20 +371,27 @@ void HUD()
     }
 
     // Movie
-    std::uint8_t* MovieStopScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? 83 ?? FF 89 ?? ?? ?? ?? ?? 89 ?? ?? ?? ?? ?? 89 ?? ?? ?? ?? ?? 48 89 ?? ?? ?? ?? ??");
-    std::uint8_t* MovieStartScanResult = Memory::PatternScan(exeModule, "C7 ?? ?? ?? ?? ?? 03 00 00 00 48 63 ?? ?? 8D ?? ?? 89 ?? ??");
-    if (MovieStopScanResult && MovieStartScanResult) {
-        spdlog::info("HUD: Movie: Stop: Address is {:s}+{:x}", sExeName.c_str(), MovieStopScanResult - (std::uint8_t*)exeModule);
-        static SafetyHookMid MovieStopMidHook{};
-        MovieStopMidHook = safetyhook::create_mid(MovieStopScanResult + 0x5,
+    std::uint8_t* HideMovieScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? EB ?? 33 ?? 48 39 ?? ?? ?? ?? ?? 74 ?? C3");
+    std::uint8_t* ShowMovieScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? 48 8B ?? ?? ?? 48 83 ?? ?? 5F C3 E8 ?? ?? ?? ?? EB ?? 33 ?? 48 39 ?? ?? ?? ?? ?? 74 ?? C3");
+    if (HideMovieScanResult && ShowMovieScanResult) {
+        spdlog::info("HUD: Movie: Hide: Address is {:s}+{:x}", sExeName.c_str(), HideMovieScanResult - (std::uint8_t*)exeModule);
+
+        static SafetyHookMid HideMovieMidHook{};
+        HideMovieMidHook = safetyhook::create_mid(Memory::GetAbsolute(HideMovieScanResult + 0x1),
             [](SafetyHookContext& ctx) {
+                #ifdef _DEBUG
+                spdlog::info("EndMenu.HideMovie()");
+                #endif
                 bMovieIsPlaying = false;
             });
 
-        spdlog::info("HUD: Movie: Start: Address is {:s}+{:x}", sExeName.c_str(), MovieStartScanResult - (std::uint8_t*)exeModule);
-        static SafetyHookMid MovieStartMidHook{};
-        MovieStartMidHook = safetyhook::create_mid(MovieStartScanResult,
+        spdlog::info("HUD: Movie: Show: Address is {:s}+{:x}", sExeName.c_str(), ShowMovieScanResult - (std::uint8_t*)exeModule);
+        static SafetyHookMid ShowMovieMidHook{};
+        ShowMovieMidHook = safetyhook::create_mid(Memory::GetAbsolute(ShowMovieScanResult + 0x1),
             [](SafetyHookContext& ctx) {
+                #ifdef _DEBUG
+                spdlog::info("EndMenu.ShowMovie()");
+                #endif
                 bMovieIsPlaying = true;
             });
     }
