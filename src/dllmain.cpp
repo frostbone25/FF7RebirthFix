@@ -122,11 +122,13 @@ void Configuration()
     // Load settings from ini
     inipp::get_value(ini.sections["Fix Aspect Ratio"], "Enabled", bFixAspect);
     inipp::get_value(ini.sections["Fix HUD"], "Enabled", bFixHUD);
+    // inipp::get_value(ini.sections["Developer Console"], "Enabled", bEnableConsole;
     //inipp::get_value(ini.sections["Disable Cutscene Framerate Cap"], "Enabled", bCutsceneFPS);
 
     // Log ini parse
     spdlog_confparse(bFixAspect);
     spdlog_confparse(bFixHUD);
+    //spdlog_confparse(bEnableConsole);
     //spdlog_confparse(bCutsceneFPS);
 
     spdlog::info("----------");
@@ -322,6 +324,7 @@ void HUD()
         spdlog::error("HUD: Composite Layer Resolution: Pattern scan failed.");
     }
 
+    // HUD Size
     std::uint8_t* HUDSizeScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? C5 ?? ?? ?? C4 41 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
     if (HUDSizeScanResult) {
         spdlog::info("HUD: Size: Address is {:s}+{:x}", sExeName.c_str(), HUDSizeScanResult - (std::uint8_t*)exeModule);
@@ -341,6 +344,7 @@ void HUD()
         spdlog::error("HUD: Size: Pattern scan failed.");
     }
 
+    // HUD Offsets
     std::uint8_t* HUDOffsetScanResult = Memory::PatternScan(exeModule, "C5 FA 11 ?? ?? ?? ?? ?? ?? C5 FA 11 ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? ?? ?? E8 ?? ?? ?? ??");
     if (HUDOffsetScanResult) {
         spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), HUDOffsetScanResult - (std::uint8_t*)exeModule);
@@ -368,6 +372,8 @@ void Framerate()
 
 void EnableConsole()
 {
+    // TODO: Stop console input from being blocked.
+
     bEnableConsole = false;
     if (bEnableConsole) {
         // Get GEngine
