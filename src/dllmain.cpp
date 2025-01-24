@@ -50,9 +50,7 @@ bool bEnableConsole;
 int iCurrentResX;
 int iCurrentResY;
 SDK::UEngine* Engine = nullptr;
-bool bConsoleOpen;
-int iCompositeLayerX = 1920;
-int iCompositeLayerY = 1080;
+bool bConsoleIsOpen;
 bool bMovieIsPlaying = false;
 
 void Logging()
@@ -299,21 +297,6 @@ void AspectRatio()
 
 void HUD()
 {
-    // HUD Composite Layer Resolution
-    std::uint8_t* HUDCompositeLayerResolutionScanResult = Memory::PatternScan(exeModule, "48 8B ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 4C 8D ?? ?? 48 89 ?? ?? 41 ?? 01 00 00 00");
-    if (HUDCompositeLayerResolutionScanResult) {
-        spdlog::info("HUD: Composite Layer Resolution: Address is {:s}+{:x}", sExeName.c_str(), HUDCompositeLayerResolutionScanResult - (std::uint8_t*)exeModule);
-        static SafetyHookMid HUDCompositeLayerResolutionMidHook{};
-        HUDCompositeLayerResolutionMidHook = safetyhook::create_mid(HUDCompositeLayerResolutionScanResult,
-            [](SafetyHookContext& ctx) {
-                iCompositeLayerX = (int)ctx.rcx;
-                iCompositeLayerY = (int)ctx.rax;
-            });
-    }
-    else {
-        spdlog::error("HUD: Composite Layer Resolution: Pattern scan failed.");
-    }
-
     // HUD Size
     std::uint8_t* HUDSizeScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? C5 ?? ?? ?? C4 41 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
     if (HUDSizeScanResult) {
@@ -338,7 +321,7 @@ void HUD()
         spdlog::error("HUD: Size: Pattern scan failed.");
     }
 
-    // HUD Offsets
+    // HUD Offset
     std::uint8_t* HUDOffsetScanResult = Memory::PatternScan(exeModule, "C5 FA 11 ?? ?? ?? ?? ?? ?? C5 FA 11 ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? ?? ?? E8 ?? ?? ?? ??");
     if (HUDOffsetScanResult) {
         spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), HUDOffsetScanResult - (std::uint8_t*)exeModule);
@@ -472,9 +455,9 @@ void EnableConsole()
             ConsoleStatusMidHook = safetyhook::create_mid(ConsoleStatusScanResult,
                 [](SafetyHookContext& ctx) {
                     if (ctx.rdx != 0)
-                        bConsoleOpen = true;
+                        bConsoleIsOpen = true;
                     else
-                        bConsoleOpen = false;
+                        bConsoleIsOpen = false;
                 });
         }
         else {
@@ -490,7 +473,7 @@ void EnableConsole()
             static SafetyHookMid ConsoleInputMidHook{};
             ConsoleInputMidHook = safetyhook::create_mid(ConsoleInputFuncAddr,
                 [](SafetyHookContext& ctx) {
-                    if (bConsoleOpen) {
+                    if (bConsoleIsOpen) {
                         ctx.rax = 0;
                         ctx.rip = (uintptr_t)ConsoleInputFuncAddr + 0x337;
                     }
