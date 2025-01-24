@@ -53,6 +53,7 @@ SDK::UEngine* Engine = nullptr;
 bool bConsoleOpen;
 int iCompositeLayerX = 1920;
 int iCompositeLayerY = 1080;
+bool bMovieIsPlaying = false;
 
 void Logging()
 {
@@ -123,7 +124,7 @@ void Configuration()
     inipp::get_value(ini.sections["Fix Aspect Ratio"], "Enabled", bFixAspect);
     inipp::get_value(ini.sections["Fix HUD"], "Enabled", bFixHUD);
     // inipp::get_value(ini.sections["Developer Console"], "Enabled", bEnableConsole;
-    //inipp::get_value(ini.sections["Disable Cutscene Framerate Cap"], "Enabled", bCutsceneFPS);
+    //inipp::get_value(ini.sections["Framerate Cap"], "Enabled", bCutsceneFPS);
 
     // Log ini parse
     spdlog_confparse(bFixAspect);
@@ -286,8 +287,8 @@ void AspectRatio()
             static SafetyHookMid AspectRatioMidHook{};
             AspectRatioMidHook = safetyhook::create_mid(AspectRatioFOVScanResult + 0xB,
                 [](SafetyHookContext& ctx) {
-                    // Apply the actual aspect ratio
-                    ctx.rax = *(uint32_t*)(&fAspectRatio);
+                    if (!bMovieIsPlaying)
+                        ctx.rax = *(uint32_t*)(&fAspectRatio);
                 });
         }
         else {
@@ -320,14 +321,16 @@ void HUD()
         static SafetyHookMid HUDSizeMidHook{};
         HUDSizeMidHook = safetyhook::create_mid(HUDSizeScanResult + 0x6,
             [](SafetyHookContext& ctx) {
-                if (fAspectRatio > fNativeAspect) {
-                    float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
-                    float WidthMultiplier = 1.00f / 1080.00f;
+                if (!bMovieIsPlaying) {
+                    if (fAspectRatio > fNativeAspect) {
+                        float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
+                        float WidthMultiplier = 1.00f / 1080.00f;
 
-                    *reinterpret_cast<float*>(ctx.rsp + 0x78) = (2160.00f - HeightOffset) * WidthMultiplier;
-                }
-                else if (fAspectRatio < fNativeAspect) {
-                    // TODO
+                        *reinterpret_cast<float*>(ctx.rsp + 0x78) = (2160.00f - HeightOffset) * WidthMultiplier;
+                    }
+                    else if (fAspectRatio < fNativeAspect) {
+                        // TODO
+                    }
                 }
             });
     }
@@ -342,15 +345,17 @@ void HUD()
         static SafetyHookMid HUDOffsetMidHook{};
         HUDOffsetMidHook = safetyhook::create_mid(HUDOffsetScanResult,
             [](SafetyHookContext& ctx) {
-                if (fAspectRatio > fNativeAspect) {
-                    float WidthOffset = (3840.00f - (3840.00f / fAspectRatio) * fNativeAspect);
-                    float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
+                if (!bMovieIsPlaying) {
+                    if (fAspectRatio > fNativeAspect) {
+                        float WidthOffset = (3840.00f - (3840.00f / fAspectRatio) * fNativeAspect);
+                        float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
 
-                    *reinterpret_cast<float*>(ctx.rsp + 0x7C) = WidthOffset / 2.00f;
-                    *reinterpret_cast<float*>(ctx.rsp + 0x80) = HeightOffset / 2.00f;
-                }
-                else if (fAspectRatio < fNativeAspect) {
-                    // TODO
+                        *reinterpret_cast<float*>(ctx.rsp + 0x7C) = WidthOffset / 2.00f;
+                        *reinterpret_cast<float*>(ctx.rsp + 0x80) = HeightOffset / 2.00f;
+                    }
+                    else if (fAspectRatio < fNativeAspect) {
+                        // TODO
+                    }
                 }
             });
     }
@@ -365,19 +370,43 @@ void HUD()
         static SafetyHookMid HUDMapMidHook{};
         HUDMapMidHook = safetyhook::create_mid(HUDMapScanResult + 0x5,
             [](SafetyHookContext& ctx) {
-                if (fAspectRatio > fNativeAspect) {
-                    float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
-                    float WidthMultiplier = 1.00f / 1080.00f;
+                if (!bMovieIsPlaying) {
+                    if (fAspectRatio > fNativeAspect) {
+                        float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
+                        float WidthMultiplier = 1.00f / 1080.00f;
 
-                    ctx.xmm0.f32[0] = (2160.00f - HeightOffset) * WidthMultiplier;
-                }
-                else if (fAspectRatio < fNativeAspect) {
-                    // TODO
+                        ctx.xmm0.f32[0] = (2160.00f - HeightOffset) * WidthMultiplier;
+                    }
+                    else if (fAspectRatio < fNativeAspect) {
+                        // TODO
+                    }
                 }
             });
     }
     else {
         spdlog::error("HUD: Map: Pattern scan failed.");
+    }
+
+    // Movie
+    std::uint8_t* MovieStopScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? 83 ?? FF 89 ?? ?? ?? ?? ?? 89 ?? ?? ?? ?? ?? 89 ?? ?? ?? ?? ?? 48 89 ?? ?? ?? ?? ??");
+    std::uint8_t* MovieStartScanResult = Memory::PatternScan(exeModule, "C7 ?? ?? ?? ?? ?? 03 00 00 00 48 63 ?? ?? 8D ?? ?? 89 ?? ??");
+    if (MovieStopScanResult && MovieStartScanResult) {
+        spdlog::info("HUD: Movie: Stop: Address is {:s}+{:x}", sExeName.c_str(), MovieStopScanResult - (std::uint8_t*)exeModule);
+        static SafetyHookMid MovieStopMidHook{};
+        MovieStopMidHook = safetyhook::create_mid(MovieStopScanResult + 0x5,
+            [](SafetyHookContext& ctx) {
+                bMovieIsPlaying = false;
+            });
+
+        spdlog::info("HUD: Movie: Start: Address is {:s}+{:x}", sExeName.c_str(), MovieStartScanResult - (std::uint8_t*)exeModule);
+        static SafetyHookMid MovieStartMidHook{};
+        MovieStartMidHook = safetyhook::create_mid(MovieStartScanResult,
+            [](SafetyHookContext& ctx) {
+                bMovieIsPlaying = true;
+            });
+    }
+    else {
+        spdlog::error("HUD: Movie: Pattern scan(s) failed.");
     }
 }
 
@@ -390,7 +419,7 @@ void EnableConsole()
 {
     // TODO: Stop console input from being blocked.
 
-    bEnableConsole = true;
+    bEnableConsole = false;
     if (bEnableConsole) {
         // Get GEngine
         for (int i = 0; i < 200; ++i) { // 20s
@@ -430,9 +459,6 @@ void EnableConsole()
             if (InputSettings->ConsoleKeys && InputSettings->ConsoleKeys.Num() > 0) {
                 spdlog::info("Enable Console: Console enabled - access it using key: {}.", InputSettings->ConsoleKeys[0].KeyName.ToString());
             }
-            else {
-                spdlog::error("Enable Console: Console enabled but no console key is bound.\nAdd this to %LOCALAPPDATA%\\AT\\Saved\\Config\\WindowsNoEditor\\Input.ini -\n[/Script/Engine.InputSettings]\nConsoleKeys = Tilde");
-            }
         }
         else {
             spdlog::error("Enable Console: Failed to retrieve input settings.");
@@ -454,9 +480,10 @@ void EnableConsole()
         else {
             spdlog::error("Enable Console: Console Status: Pattern scan failed.");
         }
+
         // Allow input when console is open
         std::uint8_t* ConsoleInputScanResult = Memory::PatternScan(exeModule, "EB ?? E8 ?? ?? ?? ?? 48 8D ?? ?? 40 ?? ?? E8 ?? ?? ?? ??");
-        if (!ConsoleInputScanResult) {
+        if (ConsoleInputScanResult) {
             spdlog::info("Enable Console: Console Input: Address is {:s}+{:x}", sExeName.c_str(), ConsoleInputScanResult - (std::uint8_t*)exeModule);
             static std::uint8_t* ConsoleInputFuncAddr = Memory::GetAbsolute(ConsoleInputScanResult + 0x3);
 
@@ -465,16 +492,13 @@ void EnableConsole()
                 [](SafetyHookContext& ctx) {
                     if (bConsoleOpen) {
                         ctx.rax = 0;
-
-                        // Go straight to ret, do not collect £200
-                        //ctx.rip = (uintptr_t)ConsoleInputFuncAddr + 0x28;
+                        ctx.rip = (uintptr_t)ConsoleInputFuncAddr + 0x337;
                     }
                 });
         }
         else {
             spdlog::error("Enable Console: Console Input: Pattern scan failed.");
         }
-
     }
 }
 
