@@ -2,7 +2,7 @@
 #include "helper.hpp"
 
 #include "SDK/Engine_classes.hpp"
-//#include "SDK/UMG_classes.hpp"
+#include "SDK/UMG_classes.hpp"
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -16,7 +16,7 @@ HMODULE thisModule;
 
 // Fix details
 std::string sFixName = "FF7RebirthFix";
-std::string sFixVersion = "0.0.1";
+std::string sFixVersion = "0.0.2";
 std::filesystem::path sFixPath;
 
 // Ini
