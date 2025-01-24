@@ -322,9 +322,9 @@ void HUD()
             [](SafetyHookContext& ctx) {
                 if (fAspectRatio > fNativeAspect) {
                     float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
-                    float HeightMultiplier = 1.00f / 1080.00f;
+                    float WidthMultiplier = 1.00f / 1080.00f;
 
-                    *reinterpret_cast<float*>(ctx.rsp + 0x78) = (2160.00f - HeightOffset) * HeightMultiplier;
+                    *reinterpret_cast<float*>(ctx.rsp + 0x78) = (2160.00f - HeightOffset) * WidthMultiplier;
                 }
                 else if (fAspectRatio < fNativeAspect) {
                     // TODO
@@ -357,6 +357,28 @@ void HUD()
     else {
         spdlog::error("HUD: Offset: Pattern scan failed.");
     }
+
+    // Map
+    std::uint8_t* HUDMapScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? 48 8B ?? ?? ?? ?? ?? C5 FA ?? ?? ?? C5 FA ?? ?? C5 FA ?? ?? ?? 68");
+    if (HUDMapScanResult) {
+        spdlog::info("HUD: Map: Address is {:s}+{:x}", sExeName.c_str(), HUDMapScanResult - (std::uint8_t*)exeModule);
+        static SafetyHookMid HUDMapMidHook{};
+        HUDMapMidHook = safetyhook::create_mid(HUDMapScanResult + 0x5,
+            [](SafetyHookContext& ctx) {
+                if (fAspectRatio > fNativeAspect) {
+                    float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
+                    float WidthMultiplier = 1.00f / 1080.00f;
+
+                    ctx.xmm0.f32[0] = (2160.00f - HeightOffset) * WidthMultiplier;
+                }
+                else if (fAspectRatio < fNativeAspect) {
+                    // TODO
+                }
+            });
+    }
+    else {
+        spdlog::error("HUD: Map: Pattern scan failed.");
+    }
 }
 
 void Framerate()
@@ -368,7 +390,7 @@ void EnableConsole()
 {
     // TODO: Stop console input from being blocked.
 
-    bEnableConsole = false;
+    bEnableConsole = true;
     if (bEnableConsole) {
         // Get GEngine
         for (int i = 0; i < 200; ++i) { // 20s
@@ -432,6 +454,27 @@ void EnableConsole()
         else {
             spdlog::error("Enable Console: Console Status: Pattern scan failed.");
         }
+        // Allow input when console is open
+        std::uint8_t* ConsoleInputScanResult = Memory::PatternScan(exeModule, "EB ?? E8 ?? ?? ?? ?? 48 8D ?? ?? 40 ?? ?? E8 ?? ?? ?? ??");
+        if (!ConsoleInputScanResult) {
+            spdlog::info("Enable Console: Console Input: Address is {:s}+{:x}", sExeName.c_str(), ConsoleInputScanResult - (std::uint8_t*)exeModule);
+            static std::uint8_t* ConsoleInputFuncAddr = Memory::GetAbsolute(ConsoleInputScanResult + 0x3);
+
+            static SafetyHookMid ConsoleInputMidHook{};
+            ConsoleInputMidHook = safetyhook::create_mid(ConsoleInputFuncAddr,
+                [](SafetyHookContext& ctx) {
+                    if (bConsoleOpen) {
+                        ctx.rax = 0;
+
+                        // Go straight to ret, do not collect £200
+                        //ctx.rip = (uintptr_t)ConsoleInputFuncAddr + 0x28;
+                    }
+                });
+        }
+        else {
+            spdlog::error("Enable Console: Console Input: Pattern scan failed.");
+        }
+
     }
 }
 
