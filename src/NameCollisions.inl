@@ -8,3 +8,16 @@
 
 // FORWARD DECLARATIONS
 
+
+namespace EN2101_05_Move_WarpToTargetFar_0 { class UEN2101_05_Move_WarpToTargetFar_C; }
+
+namespace EN2101_05_Move_WarpToTargetFar { class UEN2101_05_Move_WarpToTargetFar_C; }
+
+namespace EN2101_05_Move_WarpToTargetNear { class UEN2101_05_Move_WarpToTargetNear_C; }
+
+namespace EN2101_05_Move_WarpToTargetMiddle_0 { class UEN2101_05_Move_WarpToTargetMiddle_C; }
+
+namespace EN2101_05_Move_WarpToTargetMiddle { class UEN2101_05_Move_WarpToTargetMiddle_C; }
+
+namespace EN2101_05_Move_WarpToTargetNear_0 { class UEN2101_05_Move_WarpToTargetNear_C; }
+
