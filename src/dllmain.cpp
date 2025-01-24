@@ -305,19 +305,8 @@ void HUD()
         static SafetyHookMid HUDCompositeLayerResolutionMidHook{};
         HUDCompositeLayerResolutionMidHook = safetyhook::create_mid(HUDCompositeLayerResolutionScanResult,
             [](SafetyHookContext& ctx) {
-                if (ctx.rbx + 0x200) {
-                    if (fAspectRatio > fNativeAspect) {
-                        iCompositeLayerX = iCurrentResX;
-                        iCompositeLayerY = (int)ceilf((float)iCurrentResX / fNativeAspect);
-                    }
-                    else if (fAspectRatio < fNativeAspect) {
-                        // TODO
-                    }
-
-                    // Set new render target dimensions 
-                    *reinterpret_cast<int*>(ctx.rbx + 0x200) = iCompositeLayerX;
-                    *reinterpret_cast<int*>(ctx.rbx + 0x204) = iCompositeLayerY;
-                }
+                iCompositeLayerX = (int)ctx.rcx;
+                iCompositeLayerY = (int)ctx.rax;
             });
     }
     else {
@@ -332,8 +321,9 @@ void HUD()
         HUDSizeMidHook = safetyhook::create_mid(HUDSizeScanResult + 0x6,
             [](SafetyHookContext& ctx) {
                 if (fAspectRatio > fNativeAspect) {
-                    float widthMultiplier = (1.00f / 2160.00f) * 2.00f;
-                    *reinterpret_cast<float*>(ctx.rsp + 0x78) = std::ceilf((float)iCurrentResY * widthMultiplier * 10000.0f) / 10000.0f;
+                    float HeightOffset = (((float)iCurrentResX / fNativeAspect) - (float)iCurrentResY) / 2.00f;
+
+                    *reinterpret_cast<float*>(ctx.rsp + 0x78) = ((float)iCurrentResY + HeightOffset) * (1.00f / 1080.00f);
                 }
                 else if (fAspectRatio < fNativeAspect) {
                     // TODO
@@ -352,8 +342,10 @@ void HUD()
         HUDOffsetMidHook = safetyhook::create_mid(HUDOffsetScanResult,
             [](SafetyHookContext& ctx) {
                 if (fAspectRatio > fNativeAspect) {
+                    float HeightOffset = (((float)iCurrentResX / fNativeAspect) - (float)iCurrentResY) / 2.00f;
+
                     *reinterpret_cast<float*>(ctx.rsp + 0x7C) = fHUDWidthOffset;
-                    *reinterpret_cast<float*>(ctx.rsp + 0x80) = ((float)iCompositeLayerY - iCurrentResY) / 2.00f;
+                    *reinterpret_cast<float*>(ctx.rsp + 0x80) = HeightOffset;
                 }
                 else if (fAspectRatio < fNativeAspect) {
                     // TODO
