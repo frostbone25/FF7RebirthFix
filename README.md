@@ -22,6 +22,11 @@ This is a work-in-progress ASI plugin for for Final Fantasy VII Rebirth that add
 ## Configuration
 - See **FF7RebirthFix.ini** to adjust settings.
 
+## Screenshots
+| ![ezgif-6-f9ee9cf766](https://github.com/user-attachments/assets/1876814b-c14a-4048-86c8-2f552f086641) |
+|:--------------------------:|
+| Gameplay |
+
 ## Credits
 [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) for ASI loading. <br />
 [inipp](https://github.com/mcmtroffaes/inipp) for ini reading. <br />
