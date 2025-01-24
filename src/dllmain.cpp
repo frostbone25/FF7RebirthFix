@@ -50,6 +50,9 @@ bool bEnableConsole;
 int iCurrentResX;
 int iCurrentResY;
 SDK::UEngine* Engine = nullptr;
+bool bConsoleOpen;
+int iCompositeLayerX = 1920;
+int iCompositeLayerY = 1080;
 
 void Logging()
 {
@@ -119,12 +122,12 @@ void Configuration()
     // Load settings from ini
     inipp::get_value(ini.sections["Fix Aspect Ratio"], "Enabled", bFixAspect);
     inipp::get_value(ini.sections["Fix HUD"], "Enabled", bFixHUD);
-    inipp::get_value(ini.sections["Disable Cutscene Framerate Cap"], "Enabled", bCutsceneFPS);
+    //inipp::get_value(ini.sections["Disable Cutscene Framerate Cap"], "Enabled", bCutsceneFPS);
 
     // Log ini parse
     spdlog_confparse(bFixAspect);
     spdlog_confparse(bFixHUD);
-    spdlog_confparse(bCutsceneFPS);
+    //spdlog_confparse(bCutsceneFPS);
 
     spdlog::info("----------");
 }
@@ -215,16 +218,19 @@ void CurrentResolution()
 {
     // Grab desktop resolution
     DesktopDimensions = Util::GetPhysicalDesktopDimensions();
+    iCurrentResX = DesktopDimensions.first;
+    iCurrentResY = DesktopDimensions.second;
+    CalculateAspectRatio(true);
 
-    // Replace 3840x2160 option with desktop resolution
-    std::uint8_t* ResolutionListScanResult = Memory::PatternScan(exeModule, "C7 ?? ?? ?? 00 0F 00 00 C7 ?? ?? ?? 70 08 00 00");
-    if (ResolutionListScanResult) {
-        spdlog::info("Resolution List: Address is {:s}+{:x}", sExeName.c_str(), ResolutionListScanResult - (std::uint8_t*)exeModule);
-        Memory::Write(ResolutionListScanResult + 0x4, DesktopDimensions.first);
-        Memory::Write(ResolutionListScanResult + 0xC, DesktopDimensions.second);
+    // Replace 3840x2160 windowed option with desktop resolution
+    std::uint8_t* WindowedResListScanResult = Memory::PatternScan(exeModule, "C7 ?? ?? ?? 00 0F 00 00 C7 ?? ?? ?? 70 08 00 00");
+    if (WindowedResListScanResult) {
+        spdlog::info("Windowed Resolution List: Address is {:s}+{:x}", sExeName.c_str(), WindowedResListScanResult - (std::uint8_t*)exeModule);
+        Memory::Write(WindowedResListScanResult + 0x4, DesktopDimensions.first);
+        Memory::Write(WindowedResListScanResult + 0xC, DesktopDimensions.second);
     }
     else {
-        spdlog::error("Resolution List: Pattern scan failed.");
+        spdlog::error("Windowed Resolution List: Pattern scan failed.");
     }
 
     // Get current resolution
@@ -290,7 +296,69 @@ void AspectRatio()
 
 void HUD()
 {
-   // TODO
+    // HUD Composite Layer Resolution
+    std::uint8_t* HUDCompositeLayerResolutionScanResult = Memory::PatternScan(exeModule, "48 8B ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 4C 8D ?? ?? 48 89 ?? ?? 41 ?? 01 00 00 00");
+    if (HUDCompositeLayerResolutionScanResult) {
+        spdlog::info("HUD: Composite Layer Resolution: Address is {:s}+{:x}", sExeName.c_str(), HUDCompositeLayerResolutionScanResult - (std::uint8_t*)exeModule);
+        static SafetyHookMid HUDCompositeLayerResolutionMidHook{};
+        HUDCompositeLayerResolutionMidHook = safetyhook::create_mid(HUDCompositeLayerResolutionScanResult,
+            [](SafetyHookContext& ctx) {
+                if (ctx.rbx + 0x200) {
+                    if (fAspectRatio > fNativeAspect) {
+                        iCompositeLayerX = iCurrentResX;
+                        iCompositeLayerY = (int)ceilf((float)iCurrentResX / fNativeAspect);
+                    }
+                    else if (fAspectRatio < fNativeAspect) {
+                        // TODO
+                    }
+
+                    // Set new render target dimensions 
+                    *reinterpret_cast<int*>(ctx.rbx + 0x200) = iCompositeLayerX;
+                    *reinterpret_cast<int*>(ctx.rbx + 0x204) = iCompositeLayerY;
+                }
+            });
+    }
+    else {
+        spdlog::error("HUD: Composite Layer Resolution: Pattern scan failed.");
+    }
+
+    std::uint8_t* HUDSizeScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? C5 ?? ?? ?? C4 41 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
+    if (HUDSizeScanResult) {
+        spdlog::info("HUD: Size: Address is {:s}+{:x}", sExeName.c_str(), HUDSizeScanResult - (std::uint8_t*)exeModule);
+        static SafetyHookMid HUDSizeMidHook{};
+        HUDSizeMidHook = safetyhook::create_mid(HUDSizeScanResult + 0x6,
+            [](SafetyHookContext& ctx) {
+                if (fAspectRatio > fNativeAspect) {
+                    float widthMultiplier = (1.00f / 2160.00f) * 2.00f;
+                    *reinterpret_cast<float*>(ctx.rsp + 0x78) = std::ceilf((float)iCurrentResY * widthMultiplier * 10000.0f) / 10000.0f;
+                }
+                else if (fAspectRatio < fNativeAspect) {
+                    // TODO
+                }
+            });
+    }
+    else {
+        spdlog::error("HUD: Size: Pattern scan failed.");
+    }
+
+    std::uint8_t* HUDOffsetScanResult = Memory::PatternScan(exeModule, "C5 FA 11 ?? ?? ?? ?? ?? ?? C5 FA 11 ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? ?? ?? E8 ?? ?? ?? ??");
+    if (HUDOffsetScanResult) {
+        spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), HUDOffsetScanResult - (std::uint8_t*)exeModule);
+        static SafetyHookMid HUDOffsetMidHook{};
+        HUDOffsetMidHook = safetyhook::create_mid(HUDOffsetScanResult,
+            [](SafetyHookContext& ctx) {
+                if (fAspectRatio > fNativeAspect) {
+                    *reinterpret_cast<float*>(ctx.rsp + 0x7C) = fHUDWidthOffset;
+                    *reinterpret_cast<float*>(ctx.rsp + 0x80) = ((float)iCompositeLayerY - iCurrentResY) / 2.00f;
+                }
+                else if (fAspectRatio < fNativeAspect) {
+                    // TODO
+                }
+            });
+    }
+    else {
+        spdlog::error("HUD: Offset: Pattern scan failed.");
+    }
 }
 
 void Framerate()
@@ -300,7 +368,7 @@ void Framerate()
 
 void EnableConsole()
 {
-    bEnableConsole = true;
+    bEnableConsole = false;
     if (bEnableConsole) {
         // Get GEngine
         for (int i = 0; i < 200; ++i) { // 20s
@@ -346,6 +414,23 @@ void EnableConsole()
         }
         else {
             spdlog::error("Enable Console: Failed to retrieve input settings.");
+        }
+
+        // Check if console is open
+        std::uint8_t* ConsoleStatusScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? 48 ?? ?? 48 8B ?? ?? ?? ?? ?? 48 8B ?? 48 3B ?? ?? ?? ?? ?? 4C 8B ??");
+        if (ConsoleStatusScanResult) {
+            spdlog::info("Enable Console: Console Status: Address is {:s}+{:x}", sExeName.c_str(), ConsoleStatusScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid ConsoleStatusMidHook{};
+            ConsoleStatusMidHook = safetyhook::create_mid(ConsoleStatusScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (ctx.rdx != 0)
+                        bConsoleOpen = true;
+                    else
+                        bConsoleOpen = false;
+                });
+        }
+        else {
+            spdlog::error("Enable Console: Console Status: Pattern scan failed.");
         }
     }
 }
