@@ -321,9 +321,10 @@ void HUD()
         HUDSizeMidHook = safetyhook::create_mid(HUDSizeScanResult + 0x6,
             [](SafetyHookContext& ctx) {
                 if (fAspectRatio > fNativeAspect) {
-                    float HeightOffset = (((float)iCurrentResX / fNativeAspect) - (float)iCurrentResY) / 2.00f;
+                    float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
+                    float HeightMultiplier = 1.00f / 1080.00f;
 
-                    *reinterpret_cast<float*>(ctx.rsp + 0x78) = ((float)iCurrentResY + HeightOffset) * (1.00f / 1080.00f);
+                    *reinterpret_cast<float*>(ctx.rsp + 0x78) = (2160.00f - HeightOffset) * HeightMultiplier;
                 }
                 else if (fAspectRatio < fNativeAspect) {
                     // TODO
@@ -342,10 +343,11 @@ void HUD()
         HUDOffsetMidHook = safetyhook::create_mid(HUDOffsetScanResult,
             [](SafetyHookContext& ctx) {
                 if (fAspectRatio > fNativeAspect) {
-                    float HeightOffset = (((float)iCurrentResX / fNativeAspect) - (float)iCurrentResY) / 2.00f;
+                    float WidthOffset = (3840.00f - (3840.00f / fAspectRatio) * fNativeAspect);
+                    float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
 
-                    *reinterpret_cast<float*>(ctx.rsp + 0x7C) = fHUDWidthOffset;
-                    *reinterpret_cast<float*>(ctx.rsp + 0x80) = HeightOffset;
+                    *reinterpret_cast<float*>(ctx.rsp + 0x7C) = WidthOffset / 2.00f;
+                    *reinterpret_cast<float*>(ctx.rsp + 0x80) = HeightOffset / 2.00f;
                 }
                 else if (fAspectRatio < fNativeAspect) {
                     // TODO
