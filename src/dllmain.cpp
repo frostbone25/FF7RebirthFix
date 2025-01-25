@@ -311,14 +311,13 @@ void AspectRatioFOV()
             static SafetyHookMid VignetteMidHook{};
             VignetteMidHook = safetyhook::create_mid(VignetteScanResult,
                 [](SafetyHookContext& ctx) {
-                    if (ctx.rbx + 0x464) {
-                        // Adjust vignette for wider aspect ratios
-                        if (bFixAspect && fAspectRatio > fNativeAspect)
-                            *reinterpret_cast<float*>(ctx.rbx + 0x464) = 1.00f / fAspectMultiplier;
-
+                    if (bDisableVignette) {
                         // Disable vignette
-                        if (bDisableVignette)
-                            *reinterpret_cast<float*>(ctx.rbx + 0x464) = 0.00f;
+                        *reinterpret_cast<float*>(ctx.rbx + 0x464) = 0.00f;
+                    }
+                    else if (bFixAspect && fAspectRatio > fNativeAspect) {
+                        // Adjust vignette for wider aspect ratios
+                        *reinterpret_cast<float*>(ctx.rbx + 0x464) = 1.00f / fAspectMultiplier;
                     }
                 });
         }
