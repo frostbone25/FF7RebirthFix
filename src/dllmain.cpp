@@ -43,14 +43,14 @@ float fHUDHeightOffset;
 // Ini variables
 bool bFixAspect;
 bool bFixHUD;
-bool bCutsceneFPS;
+float fFramerateLimit = 120.00f;
 bool bEnableConsole;
 
 // Variables
 int iCurrentResX;
 int iCurrentResY;
 SDK::UEngine* Engine = nullptr;
-bool bConsoleIsOpen;
+bool bConsoleIsOpen = false;
 bool bMovieIsPlaying = false;
 
 void Logging()
@@ -121,14 +121,14 @@ void Configuration()
     // Load settings from ini
     inipp::get_value(ini.sections["Fix Aspect Ratio"], "Enabled", bFixAspect);
     inipp::get_value(ini.sections["Fix HUD"], "Enabled", bFixHUD);
-    // inipp::get_value(ini.sections["Developer Console"], "Enabled", bEnableConsole;
-    //inipp::get_value(ini.sections["Framerate Cap"], "Enabled", bCutsceneFPS);
+    inipp::get_value(ini.sections["Framerate"], "FPS", fFramerateLimit);
+    //inipp::get_value(ini.sections["Developer Console"], "Enabled", bEnableConsole;
 
     // Log ini parse
     spdlog_confparse(bFixAspect);
     spdlog_confparse(bFixHUD);
+    spdlog_confparse(fFramerateLimit);
     //spdlog_confparse(bEnableConsole);
-    //spdlog_confparse(bCutsceneFPS);
 
     spdlog::info("----------");
 }
@@ -297,112 +297,142 @@ void AspectRatio()
 
 void HUD()
 {
-    // HUD Size
-    std::uint8_t* HUDSizeScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? C5 ?? ?? ?? C4 41 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
-    if (HUDSizeScanResult) {
-        spdlog::info("HUD: Size: Address is {:s}+{:x}", sExeName.c_str(), HUDSizeScanResult - (std::uint8_t*)exeModule);
-        static SafetyHookMid HUDSizeMidHook{};
-        HUDSizeMidHook = safetyhook::create_mid(HUDSizeScanResult + 0x6,
-            [](SafetyHookContext& ctx) {
-                if (!bMovieIsPlaying) {
-                    if (fAspectRatio > fNativeAspect) {
-                        float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
-                        float WidthMultiplier = 1.00f / 1080.00f;
+    if (bFixHUD) {
+        // Force 3840x2160 HUD composite layer
+        std::uint8_t* HUDCompositeLayerScanResult = Memory::PatternScan(exeModule, "7E ?? BA 00 0F 00 00 E8 ?? ?? ?? ?? BA 70 08 00 00");
+        if (HUDCompositeLayerScanResult) {
+            spdlog::info("HUD: Composite Layer: Address is {:s}+{:x}", sExeName.c_str(), HUDCompositeLayerScanResult - (std::uint8_t*)exeModule);
+            Memory::PatchBytes(HUDCompositeLayerScanResult, "\x90\x90", 2);
+            spdlog::info("HUD: Composite Layer: Patched instruction.");
+        }
+        else {
+            spdlog::error("HUD: Composite Layer: Pattern scan failed.");
+        }
 
-                        *reinterpret_cast<float*>(ctx.rsp + 0x78) = (2160.00f - HeightOffset) * WidthMultiplier;
+        // HUD Size
+        std::uint8_t* HUDSizeScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? C5 ?? ?? ?? C4 41 ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
+        if (HUDSizeScanResult) {
+            spdlog::info("HUD: Size: Address is {:s}+{:x}", sExeName.c_str(), HUDSizeScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid HUDSizeMidHook{};
+            HUDSizeMidHook = safetyhook::create_mid(HUDSizeScanResult + 0x6,
+                [](SafetyHookContext& ctx) {
+                    if (!bMovieIsPlaying) {
+                        if (fAspectRatio > fNativeAspect) {
+                            float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
+                            float WidthMultiplier = 1.00f / 1080.00f;
+
+                            *reinterpret_cast<float*>(ctx.rsp + 0x78) = (2160.00f - HeightOffset) * WidthMultiplier;
+                        }
+                        else if (fAspectRatio < fNativeAspect) {
+                            // TODO
+                        }
                     }
-                    else if (fAspectRatio < fNativeAspect) {
-                        // TODO
+                });
+        }
+        else {
+            spdlog::error("HUD: Size: Pattern scan failed.");
+        }
+
+        // HUD Offset
+        std::uint8_t* HUDOffsetScanResult = Memory::PatternScan(exeModule, "C5 FA 11 ?? ?? ?? ?? ?? ?? C5 FA 11 ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? ?? ?? E8 ?? ?? ?? ??");
+        if (HUDOffsetScanResult) {
+            spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), HUDOffsetScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid HUDOffsetMidHook{};
+            HUDOffsetMidHook = safetyhook::create_mid(HUDOffsetScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (!bMovieIsPlaying) {
+                        if (fAspectRatio > fNativeAspect) {
+                            float WidthOffset = 3840.0f * (1.0f - (fNativeAspect / fAspectRatio));
+                            float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
+
+                            *reinterpret_cast<float*>(ctx.rsp + 0x7C) = WidthOffset / 2.00f;
+                            *reinterpret_cast<float*>(ctx.rsp + 0x80) = HeightOffset / 2.00f;
+                        }
+                        else if (fAspectRatio < fNativeAspect) {
+                            // TODO
+                        }
                     }
-                }
-            });
-    }
-    else {
-        spdlog::error("HUD: Size: Pattern scan failed.");
-    }
+                });
+        }
+        else {
+            spdlog::error("HUD: Offset: Pattern scan failed.");
+        }
 
-    // HUD Offset
-    std::uint8_t* HUDOffsetScanResult = Memory::PatternScan(exeModule, "C5 FA 11 ?? ?? ?? ?? ?? ?? C5 FA 11 ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? ?? ?? E8 ?? ?? ?? ??");
-    if (HUDOffsetScanResult) {
-        spdlog::info("HUD: Offset: Address is {:s}+{:x}", sExeName.c_str(), HUDOffsetScanResult - (std::uint8_t*)exeModule);
-        static SafetyHookMid HUDOffsetMidHook{};
-        HUDOffsetMidHook = safetyhook::create_mid(HUDOffsetScanResult,
-            [](SafetyHookContext& ctx) {
-                if (!bMovieIsPlaying) {
-                    if (fAspectRatio > fNativeAspect) {
-                        float WidthOffset = 3840.00f - ((3840.00f / fAspectRatio) * fNativeAspect);
-                        float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
-
-                        *reinterpret_cast<float*>(ctx.rsp + 0x7C) = WidthOffset / 2.00f;
-                        *reinterpret_cast<float*>(ctx.rsp + 0x80) = HeightOffset / 2.00f;
+        // Map
+        std::uint8_t* HUDMapScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? 48 8B ?? ?? ?? ?? ?? C5 FA ?? ?? ?? C5 FA ?? ?? C5 FA ?? ?? ?? 68");
+        if (HUDMapScanResult) {
+            spdlog::info("HUD: Map: Address is {:s}+{:x}", sExeName.c_str(), HUDMapScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid HUDMapMidHook{};
+            HUDMapMidHook = safetyhook::create_mid(HUDMapScanResult + 0x5,
+                [](SafetyHookContext& ctx) {
+                    if (!bMovieIsPlaying) {
+                        if (fAspectRatio > fNativeAspect) {
+                            ctx.xmm0.f32[0] = (3840.00f / fAspectRatio) * (1.00f / 1080.00f);
+                        }
+                        else if (fAspectRatio < fNativeAspect) {
+                            // TODO
+                        }
                     }
-                    else if (fAspectRatio < fNativeAspect) {
-                        // TODO
-                    }
-                }
-            });
-    }
-    else {
-        spdlog::error("HUD: Offset: Pattern scan failed.");
-    }
+                });
+        }
+        else {
+            spdlog::error("HUD: Map: Pattern scan failed.");
+        }
 
-    // Map
-    std::uint8_t* HUDMapScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? 48 8B ?? ?? ?? ?? ?? C5 FA ?? ?? ?? C5 FA ?? ?? C5 FA ?? ?? ?? 68");
-    if (HUDMapScanResult) {
-        spdlog::info("HUD: Map: Address is {:s}+{:x}", sExeName.c_str(), HUDMapScanResult - (std::uint8_t*)exeModule);
-        static SafetyHookMid HUDMapMidHook{};
-        HUDMapMidHook = safetyhook::create_mid(HUDMapScanResult + 0x5,
-            [](SafetyHookContext& ctx) {
-                if (!bMovieIsPlaying) {
-                    if (fAspectRatio > fNativeAspect) {
-                        float HeightOffset = 2160.00f - (3840.00f / fAspectRatio);
-                        float WidthMultiplier = 1.00f / 1080.00f;
+        // Movie
+        std::uint8_t* HideMovieScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? EB ?? 33 ?? 48 39 ?? ?? ?? ?? ?? 74 ?? C3");
+        std::uint8_t* ShowMovieScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? 48 8B ?? ?? ?? 48 83 ?? ?? 5F C3 E8 ?? ?? ?? ?? EB ?? 33 ?? 48 39 ?? ?? ?? ?? ?? 74 ?? C3");
+        if (HideMovieScanResult && ShowMovieScanResult) {
+            spdlog::info("HUD: Movie: Hide: Address is {:s}+{:x}", sExeName.c_str(), HideMovieScanResult - (std::uint8_t*)exeModule);
 
-                        ctx.xmm0.f32[0] = HeightOffset * WidthMultiplier;
-                    }
-                    else if (fAspectRatio < fNativeAspect) {
-                        // TODO
-                    }
-                }
-            });
-    }
-    else {
-        spdlog::error("HUD: Map: Pattern scan failed.");
-    }
+            static SafetyHookMid HideMovieMidHook{};
+            HideMovieMidHook = safetyhook::create_mid(Memory::GetAbsolute(HideMovieScanResult + 0x1),
+                [](SafetyHookContext& ctx) {
+                    #ifdef _DEBUG
+                    spdlog::info("EndMenu.HideMovie()");
+                    #endif
+                    bMovieIsPlaying = false;
+                });
 
-    // Movie
-    std::uint8_t* HideMovieScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? EB ?? 33 ?? 48 39 ?? ?? ?? ?? ?? 74 ?? C3");
-    std::uint8_t* ShowMovieScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? 48 8B ?? ?? ?? 48 83 ?? ?? 5F C3 E8 ?? ?? ?? ?? EB ?? 33 ?? 48 39 ?? ?? ?? ?? ?? 74 ?? C3");
-    if (HideMovieScanResult && ShowMovieScanResult) {
-        spdlog::info("HUD: Movie: Hide: Address is {:s}+{:x}", sExeName.c_str(), HideMovieScanResult - (std::uint8_t*)exeModule);
-
-        static SafetyHookMid HideMovieMidHook{};
-        HideMovieMidHook = safetyhook::create_mid(Memory::GetAbsolute(HideMovieScanResult + 0x1),
-            [](SafetyHookContext& ctx) {
-                #ifdef _DEBUG
-                spdlog::info("EndMenu.HideMovie()");
-                #endif
-                bMovieIsPlaying = false;
-            });
-
-        spdlog::info("HUD: Movie: Show: Address is {:s}+{:x}", sExeName.c_str(), ShowMovieScanResult - (std::uint8_t*)exeModule);
-        static SafetyHookMid ShowMovieMidHook{};
-        ShowMovieMidHook = safetyhook::create_mid(Memory::GetAbsolute(ShowMovieScanResult + 0x1),
-            [](SafetyHookContext& ctx) {
-                #ifdef _DEBUG
-                spdlog::info("EndMenu.ShowMovie()");
-                #endif
-                bMovieIsPlaying = true;
-            });
-    }
-    else {
-        spdlog::error("HUD: Movie: Pattern scan(s) failed.");
+            spdlog::info("HUD: Movie: Show: Address is {:s}+{:x}", sExeName.c_str(), ShowMovieScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid ShowMovieMidHook{};
+            ShowMovieMidHook = safetyhook::create_mid(Memory::GetAbsolute(ShowMovieScanResult + 0x1),
+                [](SafetyHookContext& ctx) {
+                    #ifdef _DEBUG
+                    spdlog::info("EndMenu.ShowMovie()");
+                    #endif
+                    bMovieIsPlaying = true;
+                });
+        }
+        else {
+            spdlog::error("HUD: Movie: Pattern scan(s) failed.");
+        }
     }
 }
 
 void Framerate()
 {
-   // TODO
+    if (fFramerateLimit != 120.00f) {
+        // Replace 120 fps option with desired framerate limit
+        std::uint8_t* FramerateLimitScanResult = Memory::PatternScan(exeModule, "C5 F8 ?? ?? E9 ?? ?? ?? ?? B3 01 E9 ?? ?? ?? ?? B3 01 E9 ?? ?? ?? ??");
+        if (FramerateLimitScanResult) {
+            spdlog::info("Framerate Limit: Address is {:s}+{:x}", sExeName.c_str(), FramerateLimitScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid FramerateLimitMidHook{};
+            FramerateLimitMidHook = safetyhook::create_mid(FramerateLimitScanResult,
+                [](SafetyHookContext& ctx) {
+                    // 120 fps option
+                    if (ctx.rbp == (int)8) {
+                        ctx.xmm6.f32[0] = fFramerateLimit;
+                        #ifdef _DEBUG
+                        spdlog::info("Framerate Limit: Set 120 fps option to {:.4f} fps", fFramerateLimit);
+                        #endif
+                    }
+                });
+        }
+        else {
+            spdlog::error("Framerate Limit: Pattern scan failed.");
+        }
+    }
 }
 
 void EnableConsole()
