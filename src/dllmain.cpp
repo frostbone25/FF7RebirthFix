@@ -357,7 +357,7 @@ void HUD()
             static SafetyHookMid HUDCompositeLayerMidHook{};
             HUDCompositeLayerMidHook = safetyhook::create_mid(HUDCompositeLayerScanResult,
                 [](SafetyHookContext& ctx) {
-                    if (ctx.rbx + 0x200) {
+                    if (ctx.rbx + 0x200 && !bMovieIsPlaying) {
                         iCompositeLayerX = (int)ctx.rcx;
                         iCompositeLayerY = (int)ctx.rax;
 
@@ -398,12 +398,14 @@ void HUD()
                 [](SafetyHookContext& ctx) {
                     if (!bMovieIsPlaying) {
                         if (fAspectRatio > fNativeAspect) {
-                            fHUDWidthScale = (float)iCurrentResY * 1.00f / 1080.00f;
-                            *reinterpret_cast<float*>(ctx.rsp + 0x78) = std::ceilf(fHUDWidthScale * 10000.00f) / 10000.00f;
+                            fHUDWidthScale = (float)iCurrentResY * (1.00f / 1080.00f);
+                            fHUDWidthScale = std::ceilf(fHUDWidthScale * 10000.00f) / 10000.00f;
+                            *reinterpret_cast<float*>(ctx.rsp + 0x78) = fHUDWidthScale;
                         }
                         else if (fAspectRatio < fNativeAspect) {
-                            fHUDWidthScale = fHUDHeight * 1.00f / 1080.00f;
-                            *reinterpret_cast<float*>(ctx.rsp + 0x78) = std::ceilf(fHUDWidthScale * 10000.00f) / 10000.00f;
+                            fHUDWidthScale = fHUDHeight * (1.00f / 1080.00f);
+                            fHUDWidthScale = std::ceilf(fHUDWidthScale * 10000.00f) / 10000.00f;
+                            *reinterpret_cast<float*>(ctx.rsp + 0x78) = fHUDWidthScale;
                         }
                     }
                 });
@@ -442,22 +444,45 @@ void HUD()
             static SafetyHookMid HUDMapMidHook{};
             HUDMapMidHook = safetyhook::create_mid(HUDMapScanResult + 0x5,
                 [](SafetyHookContext& ctx) {
-                    if (!bMovieIsPlaying) {
-                        if (fAspectRatio > fNativeAspect) {
-                            fHUDWidthScale = (float)iCurrentResY * 1.00f / 1080.00f;
-                            ctx.xmm0.f32[0] = std::ceilf(fHUDWidthScale * 10000.00f) / 10000.00f;
-                        }
-                        else if (fAspectRatio < fNativeAspect) {
-                            fHUDWidthScale = fHUDHeight * 1.00f / 1080.00f;
-                            ctx.xmm0.f32[0] = std::ceilf(fHUDWidthScale * 10000.00f) / 10000.00f;
-                        }
-                    }
+                    if (fAspectRatio != fNativeAspect) {
+                        ctx.xmm0.f32[0] = fHUDWidthScale;
+                    }    
                 });
         }
         else {
             spdlog::error("HUD: Map: Pattern scan failed.");
         }
-    }
+
+        // QTE Prompts
+        std::uint8_t* QTEPromptsScanResult = Memory::PatternScan(exeModule, "C5 C2 ?? ?? ?? ?? ?? ?? C5 FC ?? ?? ?? ?? ?? ?? ?? C5 FC ?? ?? ?? ?? ?? ?? C5 FC ?? ?? ?? ?? ?? ?? ??");
+        if (QTEPromptsScanResult) {
+            spdlog::info("HUD: QTE Prompts: Address is {:s}+{:x}", sExeName.c_str(), QTEPromptsScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid QTEPromptsOffsetMidHook{};
+            QTEPromptsOffsetMidHook = safetyhook::create_mid(QTEPromptsScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio > fNativeAspect) {
+                        ctx.xmm6.f32[0] = fHUDWidthOffset * 2.00f;
+                        ctx.xmm7.f32[0] = (float)iCompositeLayerY - (float)iCurrentResY;
+                    }
+                    else if (fAspectRatio < fNativeAspect) {
+                        ctx.xmm6.f32[0] = (float)iCompositeLayerX - (float)iCurrentResX;
+                        ctx.xmm7.f32[0] = fHUDHeightOffset * 2.00f;
+                    }
+                });
+
+            static SafetyHookMid QTEPromptsScaleMidHook{};
+            QTEPromptsScaleMidHook = safetyhook::create_mid(QTEPromptsScanResult + 0x52,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio > fNativeAspect)
+                        *reinterpret_cast<float*>(ctx.rsp + 0x4C) = 0.20f / fHUDWidthScale;
+                    else if (fAspectRatio < fNativeAspect)
+                        *reinterpret_cast<float*>(ctx.rsp + 0x50) = 0.20f / fHUDWidthScale;
+                });
+        }
+        else {
+            spdlog::error("HUD: QTE Prompts: Pattern scan failed.");
+        }
+}
 
     if (bFixMovies) {
         // Movies
