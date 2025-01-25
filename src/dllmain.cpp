@@ -122,13 +122,11 @@ void Configuration()
     inipp::get_value(ini.sections["Fix Aspect Ratio"], "Enabled", bFixAspect);
     inipp::get_value(ini.sections["Fix HUD"], "Enabled", bFixHUD);
     inipp::get_value(ini.sections["Framerate"], "FPS", fFramerateLimit);
-    //inipp::get_value(ini.sections["Developer Console"], "Enabled", bEnableConsole;
 
     // Log ini parse
     spdlog_confparse(bFixAspect);
     spdlog_confparse(bFixHUD);
     spdlog_confparse(fFramerateLimit);
-    //spdlog_confparse(bEnableConsole);
 
     spdlog::info("----------");
 }
@@ -435,93 +433,6 @@ void Framerate()
     }
 }
 
-void EnableConsole()
-{
-    // TODO: Stop console input from being blocked.
-
-    bEnableConsole = false;
-    if (bEnableConsole) {
-        // Get GEngine
-        for (int i = 0; i < 200; ++i) { // 20s
-            Engine = SDK::UEngine::GetEngine();
-
-            if (Engine && Engine->ConsoleClass && Engine->GameViewport)
-                break;
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-
-        if (!Engine || !Engine->ConsoleClass || !Engine->GameViewport) {
-            spdlog::error("Enable Console: Failed to find GEngine address after 20 seconds.");
-            return;
-        }
-
-        // Check if console already exists
-        if (Engine->GameViewport->ViewportConsole) {
-            spdlog::error("Enable Console: ViewportConsole already exists!");
-            return;
-        }
-
-        // Construct console
-        SDK::UObject* NewObject = SDK::UGameplayStatics::SpawnObject(Engine->ConsoleClass, Engine->GameViewport);
-        if (NewObject) {
-            Engine->GameViewport->ViewportConsole = static_cast<SDK::UConsole*>(NewObject);
-            spdlog::info("Enable Console: Console object constructed.");
-        }
-        else {
-            spdlog::error("Enable Console: Failed to construct console object.");
-            return;
-        }
-
-        // Check console key bind
-        SDK::UInputSettings* InputSettings = SDK::UInputSettings::GetDefaultObj();
-        if (InputSettings) {
-            if (InputSettings->ConsoleKeys && InputSettings->ConsoleKeys.Num() > 0) {
-                spdlog::info("Enable Console: Console enabled - access it using key: {}.", InputSettings->ConsoleKeys[0].KeyName.ToString());
-            }
-        }
-        else {
-            spdlog::error("Enable Console: Failed to retrieve input settings.");
-        }
-
-        // Check if console is open
-        std::uint8_t* ConsoleStatusScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? 48 ?? ?? 48 8B ?? ?? ?? ?? ?? 48 8B ?? 48 3B ?? ?? ?? ?? ?? 4C 8B ??");
-        if (ConsoleStatusScanResult) {
-            spdlog::info("Enable Console: Console Status: Address is {:s}+{:x}", sExeName.c_str(), ConsoleStatusScanResult - (std::uint8_t*)exeModule);
-            static SafetyHookMid ConsoleStatusMidHook{};
-            ConsoleStatusMidHook = safetyhook::create_mid(ConsoleStatusScanResult,
-                [](SafetyHookContext& ctx) {
-                    if (ctx.rdx != 0)
-                        bConsoleIsOpen = true;
-                    else
-                        bConsoleIsOpen = false;
-                });
-        }
-        else {
-            spdlog::error("Enable Console: Console Status: Pattern scan failed.");
-        }
-
-        // Allow input when console is open
-        std::uint8_t* ConsoleInputScanResult = Memory::PatternScan(exeModule, "EB ?? E8 ?? ?? ?? ?? 48 8D ?? ?? 40 ?? ?? E8 ?? ?? ?? ??");
-        if (ConsoleInputScanResult) {
-            spdlog::info("Enable Console: Console Input: Address is {:s}+{:x}", sExeName.c_str(), ConsoleInputScanResult - (std::uint8_t*)exeModule);
-            static std::uint8_t* ConsoleInputFuncAddr = Memory::GetAbsolute(ConsoleInputScanResult + 0x3);
-
-            static SafetyHookMid ConsoleInputMidHook{};
-            ConsoleInputMidHook = safetyhook::create_mid(ConsoleInputFuncAddr,
-                [](SafetyHookContext& ctx) {
-                    if (bConsoleIsOpen) {
-                        ctx.rax = 0;
-                        ctx.rip = (uintptr_t)ConsoleInputFuncAddr + 0x337;
-                    }
-                });
-        }
-        else {
-            spdlog::error("Enable Console: Console Input: Pattern scan failed.");
-        }
-    }
-}
-
 DWORD __stdcall Main(void*)
 {
     Logging();
@@ -531,7 +442,6 @@ DWORD __stdcall Main(void*)
     AspectRatio();
     HUD();
     Framerate();
-    EnableConsole();
 
     return true;
 }
