@@ -2,13 +2,13 @@
 [![Patreon-Button](https://raw.githubusercontent.com/Lyall/FF7RebirthFix/refs/heads/master/.github/Patreon-Button.png)](https://www.patreon.com/Wintermance) [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/W7W01UAI9)<br />
 [![Github All Releases](https://img.shields.io/github/downloads/Lyall/FF7RebirthFix/total.svg)](https://github.com/Lyall/FF7RebirthFix/releases)
 
-This is a work-in-progress ASI plugin for for Final Fantasy VII Rebirth that adds ultrawide support and more.
+This is a work-in-progress ASI plugin for for Final Fantasy VII Rebirth that adds ultrawide/narrower support and more.
 
 ## Features
 ### General
 - Adjustable framerate cap.
 
-### Ultrawide
+### Ultrawide/Narrower
 - Support for any aspect ratio with corrected FOV.
 - Centered 16:9 HUD.
 
@@ -23,6 +23,9 @@ This is a work-in-progress ASI plugin for for Final Fantasy VII Rebirth that add
 
 ## Configuration
 - See **FF7RebirthFix.ini** to adjust settings.
+
+## Recommended Mods
+- [FFVIIHook](https://www.nexusmods.com/finalfantasy7rebirth/mods/4) by [emoose](https://github.com/emoose) - Unlocks the console and allows cvars to be overridden.
 
 ## Known Issues
 ### Ultrawide
