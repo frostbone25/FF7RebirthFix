@@ -44,6 +44,8 @@ bool bFixAspect;
 bool bFixHUD;
 bool bFixMovies;
 float fFramerateLimit = 120.00f;
+float fGameplayFOVMulti;
+bool bDisableVignette;
 
 // Variables
 int iCurrentResX;
@@ -126,12 +128,16 @@ void Configuration()
     inipp::get_value(ini.sections["Fix HUD"], "Enabled", bFixHUD);
     inipp::get_value(ini.sections["Fix Movies"], "Enabled", bFixMovies);
     inipp::get_value(ini.sections["Framerate"], "FPS", fFramerateLimit);
+    inipp::get_value(ini.sections["Gameplay FOV"], "Multiplier", fGameplayFOVMulti);
+    inipp::get_value(ini.sections["Vignette"], "Disabled", bDisableVignette);
 
     // Log ini parse
     spdlog_confparse(bFixAspect);
     spdlog_confparse(bFixHUD);
     spdlog_confparse(bFixMovies);
     spdlog_confparse(fFramerateLimit);
+    spdlog_confparse(fGameplayFOVMulti);
+    spdlog_confparse(bDisableVignette);
 
     spdlog::info("----------");
 }
@@ -270,7 +276,7 @@ void CurrentResolution()
     }
 }
 
-void AspectRatio()
+void AspectRatioFOV()
 {
     if (bFixAspect) {
         // Aspect ratio / FOV
@@ -294,6 +300,50 @@ void AspectRatio()
         }
         else {
             spdlog::error("Aspect Ratio/FOV: Pattern scan failed.");
+        }
+    }
+
+    if (bFixAspect || bDisableVignette) {
+        // Vignette 
+        std::uint8_t* VignetteScanResult = Memory::PatternScan(exeModule, "4C 89 ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ?? 44 89 ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ??");
+        if (VignetteScanResult) {
+            spdlog::info("Vignette: Address is {:s}+{:x}", sExeName.c_str(), VignetteScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid VignetteMidHook{};
+            VignetteMidHook = safetyhook::create_mid(VignetteScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (ctx.rbx + 0x464) {
+                        // Adjust vignette for wider aspect ratios
+                        if (bFixAspect && fAspectRatio > fNativeAspect)
+                            *reinterpret_cast<float*>(ctx.rbx + 0x464) = 1.00f / fAspectMultiplier;
+
+                        // Disable vignette
+                        if (bDisableVignette)
+                            *reinterpret_cast<float*>(ctx.rbx + 0x464) = 0.00f;
+                    }
+                });
+        }
+        else {
+            spdlog::error("Vignette: Pattern scan failed.");
+        }
+    }
+
+    if (fGameplayFOVMulti != 1.00f) {
+        // Gameplay FOV
+        std::uint8_t* GameplayFOVScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? 4C 39 ?? ?? ?? ?? ?? 0F 84 ?? ?? ?? ?? C5 F8 ?? ?? ?? 49 ?? ?? E8 ?? ?? ?? ??");
+        if (GameplayFOVScanResult) {
+            spdlog::info("Gameplay FOV: Address is {:s}+{:x}", sExeName.c_str(), GameplayFOVScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid GameplayFOVMidHook{};
+            GameplayFOVMidHook = safetyhook::create_mid(GameplayFOVScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (ctx.rdx + 0x3C) {
+                        float fov = *reinterpret_cast<float*>(ctx.rdx + 0x38);
+                        fov *= fGameplayFOVMulti;
+                        *reinterpret_cast<float*>(ctx.rcx + 0x38) = fov;
+                    }
+                });
+        }
+        else {
+            spdlog::error("Gameplay FOV: Pattern scan failed.");
         }
     }
 }
@@ -473,7 +523,7 @@ DWORD __stdcall Main(void*)
     Configuration();
     UpdateOffsets();
     CurrentResolution();
-    AspectRatio();
+    AspectRatioFOV();
     HUD();
     Framerate();
 
