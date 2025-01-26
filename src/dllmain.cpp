@@ -301,6 +301,18 @@ void AspectRatioFOV()
         else {
             spdlog::error("Aspect Ratio/FOV: Pattern scan failed.");
         }
+
+        // White screen bug with TAA
+        // TODO: This is kind of a hack solution. NSight/RenderDoc for more info?
+        std::uint8_t* WhiteScreenBugScanResult = Memory::PatternScan(exeModule, "C7 45 ?? 38 04 00 00 48 8D ?? ?? ?? ?? ?? 75 ?? 48 8D ?? ?? ?? ?? ?? 45 33 ??");
+        if (WhiteScreenBugScanResult) {
+            spdlog::info("White Screen Bug: Address is {:s}+{:x}", sExeName.c_str(), WhiteScreenBugScanResult - (std::uint8_t*)exeModule);
+            Memory::PatchBytes(WhiteScreenBugScanResult + 0x3, "\x39", 1);
+            spdlog::info("White Screen Bug: Patched instruction.");
+        }
+        else {
+            spdlog::error("White Screen Bug: Pattern scan failed.");
+        }
     }
 
     if (bFixAspect || bDisableVignette) {
