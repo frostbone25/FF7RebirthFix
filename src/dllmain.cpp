@@ -454,6 +454,7 @@ void HUD()
         }
 
         // QTE Prompts
+        // TODO: This still isn't right as they move up and down with the camera, but at least they're visibile now.
         std::uint8_t* QTEPromptsScanResult = Memory::PatternScan(exeModule, "C5 C2 ?? ?? ?? ?? ?? ?? C5 FC ?? ?? ?? ?? ?? ?? ?? C5 FC ?? ?? ?? ?? ?? ?? C5 FC ?? ?? ?? ?? ?? ?? ??");
         if (QTEPromptsScanResult) {
             spdlog::info("HUD: QTE Prompts: Address is {:s}+{:x}", sExeName.c_str(), QTEPromptsScanResult - (std::uint8_t*)exeModule);
@@ -461,12 +462,12 @@ void HUD()
             QTEPromptsOffsetMidHook = safetyhook::create_mid(QTEPromptsScanResult,
                 [](SafetyHookContext& ctx) {
                     if (fAspectRatio > fNativeAspect) {
-                        ctx.xmm6.f32[0] = fHUDWidthOffset * 2.00f;
-                        ctx.xmm7.f32[0] = (float)iCompositeLayerY - (float)iCurrentResY;
+                        ctx.xmm6.f32[0] += fHUDWidthOffset * 2.00f;
+                        ctx.xmm7.f32[0] += (float)iCompositeLayerY - (float)iCurrentResY;
                     }
                     else if (fAspectRatio < fNativeAspect) {
-                        ctx.xmm6.f32[0] = (float)iCompositeLayerX - (float)iCurrentResX;
-                        ctx.xmm7.f32[0] = fHUDHeightOffset * 2.00f;
+                        ctx.xmm6.f32[0] += (float)iCompositeLayerX - (float)iCurrentResX;
+                        ctx.xmm7.f32[0] += fHUDHeightOffset * 2.00f;
                     }
                 });
 
