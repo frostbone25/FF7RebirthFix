@@ -328,17 +328,13 @@ void AspectRatioFOV()
 
     if (fGameplayFOVMulti != 1.00f) {
         // Gameplay FOV
-        std::uint8_t* GameplayFOVScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? 4C 39 ?? ?? ?? ?? ?? 0F 84 ?? ?? ?? ?? C5 F8 ?? ?? ?? 49 ?? ?? E8 ?? ?? ?? ??");
+        std::uint8_t* GameplayFOVScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? C5 CA ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? 45 ?? ??");
         if (GameplayFOVScanResult) {
             spdlog::info("Gameplay FOV: Address is {:s}+{:x}", sExeName.c_str(), GameplayFOVScanResult - (std::uint8_t*)exeModule);
             static SafetyHookMid GameplayFOVMidHook{};
             GameplayFOVMidHook = safetyhook::create_mid(GameplayFOVScanResult,
                 [](SafetyHookContext& ctx) {
-                    if (ctx.rdx + 0x3C) {
-                        float fov = *reinterpret_cast<float*>(ctx.rdx + 0x38);
-                        fov *= fGameplayFOVMulti;
-                        *reinterpret_cast<float*>(ctx.rcx + 0x38) = fov;
-                    }
+                    ctx.xmm0.f32[0] *= fGameplayFOVMulti;
                 });
         }
         else {
@@ -492,21 +488,25 @@ void HUD()
             spdlog::info("HUD: Fades: Function: Address is {:s}+{:x}", sExeName.c_str(), HUDFadesFunc - (std::uint8_t*)exeModule);
 
             static SafetyHookMid HUDFadesSizeMidHook{};
-            HUDFadesSizeMidHook = safetyhook::create_mid(HUDFadesFunc + 0x1B9, // :(
+            HUDFadesSizeMidHook = safetyhook::create_mid(HUDFadesFunc + 0x1B9,
                 [](SafetyHookContext& ctx) {
-                    if (fAspectRatio > fNativeAspect)
-                        ctx.xmm0.f32[0] = ctx.xmm0.f32[1] * fAspectRatio;
-                    else if (fAspectRatio < fNativeAspect)
-                        ctx.xmm0.f32[1] = ctx.xmm0.f32[0] / fAspectRatio;
+                    if (!bMovieIsPlaying) {
+                        if (fAspectRatio > fNativeAspect)
+                            ctx.xmm0.f32[0] = ctx.xmm0.f32[1] * fAspectRatio;
+                        else if (fAspectRatio < fNativeAspect)
+                            ctx.xmm0.f32[1] = ctx.xmm0.f32[0] / fAspectRatio;
+                    }
                 });
 
             static SafetyHookMid HUDFadesOffsetMidHook{};
-            HUDFadesOffsetMidHook = safetyhook::create_mid(HUDFadesFunc + 0x1C8, // :(
+            HUDFadesOffsetMidHook = safetyhook::create_mid(HUDFadesFunc + 0x1C8,
                 [](SafetyHookContext& ctx) {
-                    if (fAspectRatio > fNativeAspect)
-                        ctx.xmm0.f32[0] = 0.00f;
-                    else if (fAspectRatio < fNativeAspect)
-                        ctx.xmm0.f32[1] = 0.00f;
+                    if (!bMovieIsPlaying) {
+                        if (fAspectRatio > fNativeAspect)
+                            ctx.xmm0.f32[0] = 0.00f;
+                        else if (fAspectRatio < fNativeAspect)
+                            ctx.xmm0.f32[1] = 0.00f;
+                    }
                 });
         }
         else {
