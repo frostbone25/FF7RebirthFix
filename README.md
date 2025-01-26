@@ -27,12 +27,13 @@ This is a work-in-progress ASI plugin for for Final Fantasy VII Rebirth that add
 - See **FF7RebirthFix.ini** to adjust settings.
 
 ## Known Issues
+#### Ultrawide/narrower
 - HUD may appear blurry at wider aspect ratios such as 32:9.
 - Some button prompts may appear off-screen or move with the camera.
 - Some HUD elements such as the blue glow around selections in the main menu are positioned incorrectly. 
 
 ## Recommended Mods
-- [FFVIIHook](https://www.nexusmods.com/finalfantasy7rebirth/mods/4) by [emoose](https://github.com/emoose) - Unlocks the console and allows cvars to be overridden.
+- [FFVIIHook](https://www.nexusmods.com/finalfantasy7rebirth/mods/4) by [emoose](https://github.com/emoose) - Unlocks the console, allows overriding certain cvars and more.
 
 ## Screenshots
 | ![ezgif-4-824a451ada](https://github.com/user-attachments/assets/c47644d7-df1e-4331-83df-e1f409e8741b) |
