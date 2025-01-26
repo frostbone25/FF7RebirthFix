@@ -35,7 +35,7 @@ This is a work-in-progress ASI plugin for for Final Fantasy VII Rebirth that add
 - [FFVIIHook](https://www.nexusmods.com/finalfantasy7rebirth/mods/4) by [emoose](https://github.com/emoose) - Unlocks the console and allows cvars to be overridden.
 
 ## Screenshots
-| ![ezgif-6-f9ee9cf766](https://github.com/user-attachments/assets/1876814b-c14a-4048-86c8-2f552f086641) |
+| ![ezgif-4-824a451ada](https://github.com/user-attachments/assets/c47644d7-df1e-4331-83df-e1f409e8741b) |
 |:--------------------------:|
 | Gameplay |
 
