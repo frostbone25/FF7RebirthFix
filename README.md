@@ -6,7 +6,9 @@ This is a work-in-progress ASI plugin for for Final Fantasy VII Rebirth that add
 
 ## Features
 ### General
-- Adjustable framerate cap.
+- Adjust gameplay FOV.
+- Adjust framerate limit option.
+- Disable vignette.
 
 ### Ultrawide/Narrower
 - Support for any aspect ratio with corrected FOV.
