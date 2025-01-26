@@ -483,7 +483,36 @@ void HUD()
         else {
             spdlog::error("HUD: QTE Prompts: Pattern scan failed.");
         }
-}
+
+        // Fades
+        std::uint8_t* HUDFadesScanResult = Memory::PatternScan(exeModule, "48 8B ?? ?? ?? ?? ?? ?? 48 89 ?? ?? ?? 48 8B ?? E8 ?? ?? ?? ?? 48 8B ?? ?? ?? 48 8B ?? ?? ?? 48 8B ?? ?? ??");
+        if (HUDFadesScanResult) {
+            spdlog::info("HUD: Fades: Address is {:s}+{:x}", sExeName.c_str(), HUDFadesScanResult - (std::uint8_t*)exeModule);
+            std::uint8_t* HUDFadesFunc = Memory::GetAbsolute(HUDFadesScanResult + 0x11);
+            spdlog::info("HUD: Fades: Function: Address is {:s}+{:x}", sExeName.c_str(), HUDFadesFunc - (std::uint8_t*)exeModule);
+
+            static SafetyHookMid HUDFadesSizeMidHook{};
+            HUDFadesSizeMidHook = safetyhook::create_mid(HUDFadesFunc + 0x1B9, // :(
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio > fNativeAspect)
+                        ctx.xmm0.f32[0] = ctx.xmm0.f32[1] * fAspectRatio;
+                    else if (fAspectRatio < fNativeAspect)
+                        ctx.xmm0.f32[1] = ctx.xmm0.f32[0] / fAspectRatio;
+                });
+
+            static SafetyHookMid HUDFadesOffsetMidHook{};
+            HUDFadesOffsetMidHook = safetyhook::create_mid(HUDFadesFunc + 0x1C8, // :(
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio > fNativeAspect)
+                        ctx.xmm0.f32[0] = 0.00f;
+                    else if (fAspectRatio < fNativeAspect)
+                        ctx.xmm0.f32[1] = 0.00f;
+                });
+        }
+        else {
+            spdlog::error("HUD: Fades: Pattern scan failed.");
+        }
+    }
 
     if (bFixMovies) {
         // Movies
