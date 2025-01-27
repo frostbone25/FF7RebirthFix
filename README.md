@@ -2,7 +2,7 @@
 [![Patreon-Button](https://raw.githubusercontent.com/Lyall/FF7RebirthFix/refs/heads/master/.github/Patreon-Button.png)](https://www.patreon.com/Wintermance) [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/W7W01UAI9)<br />
 [![Github All Releases](https://img.shields.io/github/downloads/Lyall/FF7RebirthFix/total.svg)](https://github.com/Lyall/FF7RebirthFix/releases)
 
-This is a work-in-progress ASI plugin for for Final Fantasy VII Rebirth that adds ultrawide/narrower support and more.
+This is an ASI plugin for for Final Fantasy VII Rebirth that adds ultrawide/narrower support and more.
 
 ## Features
 ### General
@@ -27,10 +27,10 @@ This is a work-in-progress ASI plugin for for Final Fantasy VII Rebirth that add
 - See **FF7RebirthFix.ini** to adjust settings.
 
 ## Known Issues
-#### Ultrawide/narrower
+#### Ultrawide/Narrower
 - Some button prompts may appear off-screen or move with the camera.
 - Some HUD elements such as the blue glow around selections in the main menu are positioned incorrectly.
-- The TV overlay during the parade mini-game appear cropped.
+- The TV overlay during the parade mini-game appears cropped.
 
 ## Recommended Mods
 - [FFVIIHook](https://www.nexusmods.com/finalfantasy7rebirth/mods/4) by [emoose](https://github.com/emoose) - Unlocks the console, allows overriding certain cvars and more.
