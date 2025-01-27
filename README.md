@@ -29,7 +29,8 @@ This is a work-in-progress ASI plugin for for Final Fantasy VII Rebirth that add
 ## Known Issues
 #### Ultrawide/narrower
 - Some button prompts may appear off-screen or move with the camera.
-- Some HUD elements such as the blue glow around selections in the main menu are positioned incorrectly. 
+- Some HUD elements such as the blue glow around selections in the main menu are positioned incorrectly.
+- The TV overlay during the parade mini-game appear cropped.
 
 ## Recommended Mods
 - [FFVIIHook](https://www.nexusmods.com/finalfantasy7rebirth/mods/4) by [emoose](https://github.com/emoose) - Unlocks the console, allows overriding certain cvars and more.
