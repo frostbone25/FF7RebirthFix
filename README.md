@@ -28,7 +28,6 @@ This is a work-in-progress ASI plugin for for Final Fantasy VII Rebirth that add
 
 ## Known Issues
 #### Ultrawide/narrower
-- HUD may appear blurry at wider aspect ratios such as 32:9.
 - Some button prompts may appear off-screen or move with the camera.
 - Some HUD elements such as the blue glow around selections in the main menu are positioned incorrectly. 
 
