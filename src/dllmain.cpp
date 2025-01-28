@@ -36,7 +36,7 @@ float fHUDWidth;
 float fHUDWidthOffset;
 float fHUDHeight;
 float fHUDHeightOffset;
-float fHUDHeightScale;
+float fHUDScale;
 
 // Ini variables
 bool bFixAspect;
@@ -205,10 +205,10 @@ void CalculateHUD(bool bLog)
         float scaleFactorX = static_cast<float>(MAX_RENDER_TARGET_SIZE) / iCompositeLayerX;
         float scaleFactorY = static_cast<float>(MAX_RENDER_TARGET_SIZE) / iCompositeLayerY;
 
-        float finalScaleFactor = std::min(scaleFactorX, scaleFactorY);
+        float clampedResScale = std::min(scaleFactorX, scaleFactorY);
 
-        iCompositeLayerX = static_cast<int>(iCompositeLayerX * finalScaleFactor);
-        iCompositeLayerY = static_cast<int>(iCompositeLayerY * finalScaleFactor);
+        iCompositeLayerX = static_cast<int>(iCompositeLayerX * clampedResScale);
+        iCompositeLayerY = static_cast<int>(iCompositeLayerY * clampedResScale);
     }
 
     // Calculate HUD size and offsets to position HUD within render target
@@ -228,7 +228,7 @@ void CalculateHUD(bool bLog)
     }
 
     // Calculate HUD scale
-    fHUDHeightScale = std::ceilf(fHUDHeight * (1.00f / 1080.00f) * 1000.00f) / 1000.00f;
+    fHUDScale = fHUDHeight * (1.00f / 1080.00f);
 
     // Log details about current HUD size
     if (bLog) {
@@ -236,13 +236,13 @@ void CalculateHUD(bool bLog)
         spdlog::info("HUD: Resolution: {}x{} - ResScale: {}", iCompositeLayerX, iCompositeLayerY, ResScale);
         spdlog::info("HUD: fHUDWidth: {}", fHUDWidth);
         spdlog::info("HUD: fHUDHeight: {}", fHUDHeight);
-        spdlog::info("HUD: fHUDWidthOffset: {}", fHUDWidthOffset);
-        spdlog::info("HUD: fHUDHeightOffset: {}", fHUDHeightOffset);
-        spdlog::info("HUD: fHUDHeightScale: {}", fHUDHeightScale);
+        spdlog::info("HUD: fHUDWidthOffset: {:.2f}", fHUDWidthOffset);
+        spdlog::info("HUD: fHUDHeightOffset: {:.2f}", fHUDHeightOffset);
+        spdlog::info("HUD: fHUDScale: {:.5f}", fHUDScale);
         spdlog::info("----------");
     }
 
-    // Signal that HUD resize is over
+    // Signal that HUD resize is done
     bHUDNeedsResize = false;
 }
 
@@ -341,14 +341,10 @@ void AspectRatioFOV()
             static SafetyHookMid VignetteMidHook{};
             VignetteMidHook = safetyhook::create_mid(VignetteScanResult,
                 [](SafetyHookContext& ctx) {
-                    if (bDisableVignette) {
-                        // Disable vignette
+                    if (bDisableVignette)
                         *reinterpret_cast<float*>(ctx.rbx + 0x464) = 0.00f;
-                    }
-                    else if (bFixAspect && fAspectRatio > fNativeAspect) {
-                        // Adjust vignette for wider aspect ratios
+                    else if (bFixAspect && fAspectRatio > fNativeAspect)
                         *reinterpret_cast<float*>(ctx.rbx + 0x464) = 1.00f / fAspectMultiplier;
-                    }
                 });
         }
         else {
@@ -385,9 +381,8 @@ void HUD()
                 [](SafetyHookContext& ctx) {
                     if (ctx.rbx + 0x200 && !bMovieIsPlaying && fAspectRatio != fNativeAspect) {
                         // Calculate new HUD size if resolution changed
-                        if (bHUDNeedsResize) {
+                        if (bHUDNeedsResize)
                             CalculateHUD(true); 
-                        }
 
                         // Set render target dimensions. 
                         *reinterpret_cast<int*>(ctx.rbx + 0x200) = iCompositeLayerX;
@@ -408,7 +403,7 @@ void HUD()
                 [](SafetyHookContext& ctx) {
                     if (!bMovieIsPlaying) {
                         if (fAspectRatio != fNativeAspect) {
-                            *reinterpret_cast<float*>(ctx.rsp + 0x78) = fHUDHeightScale;
+                            *reinterpret_cast<float*>(ctx.rsp + 0x78) = fHUDScale;
                             *reinterpret_cast<float*>(ctx.rsp + 0x7C) = fHUDWidthOffset;
                             *reinterpret_cast<float*>(ctx.rsp + 0x80) = fHUDHeightOffset;
                         }
@@ -427,7 +422,7 @@ void HUD()
             HUDMapMidHook = safetyhook::create_mid(HUDMapScanResult + 0x5,
                 [](SafetyHookContext& ctx) {
                     if (fAspectRatio != fNativeAspect) {
-                        ctx.xmm0.f32[0] = fHUDHeightScale;
+                        ctx.xmm0.f32[0] = fHUDScale;
                     }    
                 });
         }
@@ -436,7 +431,7 @@ void HUD()
         }
 
         // QTE Prompts
-        // TODO: This still isn't right as they move up and down with the camera, but at least they're visibile now.
+        // TODO: This still isn't right as they move up and down with the camera, but at least they're visible now.
         std::uint8_t* QTEPromptsScanResult = Memory::PatternScan(exeModule, "C5 C2 ?? ?? ?? ?? ?? ?? C5 FC ?? ?? ?? ?? ?? ?? ?? C5 FC ?? ?? ?? ?? ?? ?? C5 FC ?? ?? ?? ?? ?? ?? ??");
         if (QTEPromptsScanResult) {
             spdlog::info("HUD: QTE Prompts: Address is {:s}+{:x}", sExeName.c_str(), QTEPromptsScanResult - (std::uint8_t*)exeModule);
@@ -453,9 +448,9 @@ void HUD()
             QTEPromptsScaleMidHook = safetyhook::create_mid(QTEPromptsScanResult + 0x52,
                 [](SafetyHookContext& ctx) {
                     if (fAspectRatio > fNativeAspect)
-                        *reinterpret_cast<float*>(ctx.rsp + 0x4C) = 0.20f / fHUDHeightScale;
+                        *reinterpret_cast<float*>(ctx.rsp + 0x4C) = 0.20f / fHUDScale;
                     else if (fAspectRatio < fNativeAspect)
-                        *reinterpret_cast<float*>(ctx.rsp + 0x50) = 0.20f / fHUDHeightScale;
+                        *reinterpret_cast<float*>(ctx.rsp + 0x50) = 0.20f / fHUDScale;
                 });
         }
         else {
@@ -473,10 +468,14 @@ void HUD()
             HUDFadesSizeMidHook = safetyhook::create_mid(HUDFadesFunc + 0x1B9,
                 [](SafetyHookContext& ctx) {
                     if (!bMovieIsPlaying) {
-                        if (fAspectRatio > fNativeAspect)
-                            ctx.xmm0.f32[0] = (ctx.xmm0.f32[1] * fAspectRatio) + 4.00f;
-                        else if (fAspectRatio < fNativeAspect)
-                            ctx.xmm0.f32[1] = (ctx.xmm0.f32[0] / fAspectRatio) + 4.00f;
+                        if (fAspectRatio > fNativeAspect) {
+                            ctx.xmm0.f32[0] = (ctx.xmm0.f32[1] * fAspectRatio);
+                            ctx.xmm0.f32[1] += 32.00f; // Add some extra height to account for HUD scale imprecision.
+                        }
+                        else if (fAspectRatio < fNativeAspect) {
+                            ctx.xmm0.f32[0] += 32.00f; // Add some extra width to account for HUD scale imprecision.
+                            ctx.xmm0.f32[1] = (ctx.xmm0.f32[0] / fAspectRatio);
+                        }
                     }
                 });
 
