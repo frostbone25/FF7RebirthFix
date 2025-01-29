@@ -43,7 +43,8 @@ bool bFixAspect;
 bool bFixHUD;
 bool bFixMovies;
 float fFramerateLimit = 120.00f;
-float fGameplayFOVMulti;
+bool bGlobalFOVMulti;
+float fFOVMulti;
 bool bAutoVignette;
 float fVignetteStrength;
 float fHUDResScale;
@@ -131,7 +132,8 @@ void Configuration()
     inipp::get_value(ini.sections["Fix HUD"], "ResScale", fHUDResScale);
     inipp::get_value(ini.sections["Fix Movies"], "Enabled", bFixMovies);
     inipp::get_value(ini.sections["Framerate"], "FPS", fFramerateLimit);
-    inipp::get_value(ini.sections["Gameplay FOV"], "Multiplier", fGameplayFOVMulti);
+    inipp::get_value(ini.sections["FOV"], "Global", bGlobalFOVMulti);
+    inipp::get_value(ini.sections["FOV"], "Multiplier", fFOVMulti);
     inipp::get_value(ini.sections["Vignette"], "Auto", bAutoVignette);
     inipp::get_value(ini.sections["Vignette"], "Strength", fVignetteStrength);
 
@@ -146,7 +148,8 @@ void Configuration()
     spdlog_confparse(fHUDResScale);
     spdlog_confparse(bFixMovies);
     spdlog_confparse(fFramerateLimit);
-    spdlog_confparse(fGameplayFOVMulti);
+    spdlog_confparse(bGlobalFOVMulti);
+    spdlog_confparse(fFOVMulti);
     spdlog_confparse(bAutoVignette);
     spdlog_confparse(fVignetteStrength);
 
@@ -300,7 +303,7 @@ void CurrentResolution()
 
 void AspectRatioFOV()
 {
-    if (bFixAspect) {
+    if (bFixAspect || bGlobalFOVMulti) {
         // Aspect ratio / FOV
         std::uint8_t* AspectRatioFOVScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? 8B ?? ?? ?? ?? ?? 89 ?? ?? 0F B6 ?? ?? ?? ?? ?? 33 ?? ?? 83 ?? 01");
         if (AspectRatioFOVScanResult) {
@@ -309,14 +312,17 @@ void AspectRatioFOV()
             FOVMidHook = safetyhook::create_mid(AspectRatioFOVScanResult,
                 [](SafetyHookContext& ctx) {
                     // Fix vert- FOV when wider than 16:9
-                    if (fAspectRatio > fNativeAspect)
+                    if (bFixAspect && fAspectRatio > fNativeAspect)
                         ctx.xmm1.f32[0] = atanf(tanf(ctx.xmm1.f32[0] * (fPi / 360)) / fNativeAspect * fAspectRatio) * (360 / fPi);
+                    
+                    if (bGlobalFOVMulti)
+                        ctx.xmm1.f32[0] *= fFOVMulti;
                 });
 
             static SafetyHookMid AspectRatioMidHook{};
             AspectRatioMidHook = safetyhook::create_mid(AspectRatioFOVScanResult + 0xB,
                 [](SafetyHookContext& ctx) {
-                    if (!bMovieIsPlaying)
+                    if (bFixAspect && !bMovieIsPlaying)
                         ctx.rax = *(uint32_t*)(&fAspectRatio);
                 });
         }
@@ -356,7 +362,7 @@ void AspectRatioFOV()
         }
     }
 
-    if (fGameplayFOVMulti != 1.00f) {
+    if (!bGlobalFOVMulti && fFOVMulti != 1.00f) {
         // Gameplay FOV
         std::uint8_t* GameplayFOVScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? C5 CA ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? 45 ?? ??");
         if (GameplayFOVScanResult) {
@@ -364,7 +370,7 @@ void AspectRatioFOV()
             static SafetyHookMid GameplayFOVMidHook{};
             GameplayFOVMidHook = safetyhook::create_mid(GameplayFOVScanResult,
                 [](SafetyHookContext& ctx) {
-                    ctx.xmm0.f32[0] *= fGameplayFOVMulti;
+                    ctx.xmm0.f32[0] *= fFOVMulti;
                 });
         }
         else {
