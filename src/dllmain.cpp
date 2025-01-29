@@ -228,7 +228,7 @@ void CalculateHUD(bool bLog)
     }
 
     // Calculate HUD scale
-    fHUDScale = fHUDHeight * (1.00f / 1080.00f);
+    fHUDScale = std::round(fHUDHeight * (1.00f / 1080.00f) * 100.00f) / 100.00f;
 
     // Log details about current HUD size
     if (bLog) {
@@ -392,6 +392,59 @@ void HUD()
         }
         else {
             spdlog::error("HUD: Composite Layer: Pattern scan failed.");
+        }
+
+        // Extra Composite Layer BG
+        std::uint8_t* ExtraCompositeLayerBackgroundScanResult = Memory::PatternScan(exeModule, "4C 8D ?? ?? ?? ?? ?? BE 01 00 00 00 48 8D ?? ?? ?? 40 88 ?? ?? ?? 66 89 ?? ?? ?? C6 44 ?? ?? 00");
+        if (ExtraCompositeLayerBackgroundScanResult) {
+            spdlog::info("HUD: Extra Composite Layer: Background: Address is {:s}+{:x}", sExeName.c_str(), ExtraCompositeLayerBackgroundScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid ExtraCompositeLayerBackgroundMidHook{};
+            ExtraCompositeLayerBackgroundMidHook = safetyhook::create_mid(ExtraCompositeLayerBackgroundScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio != fNativeAspect) {
+                        // Set render target dimensions. 
+                        ctx.rdx = (static_cast<uintptr_t>(iCompositeLayerY) << 32) | (static_cast<uintptr_t>(iCompositeLayerX) & 0xFFFFFFFF);
+                    }
+                });
+        }
+        else {
+            spdlog::error("HUD: Extra Composite Layer: Background: Pattern scan failed.");
+        }
+
+        // Extra Composite Layer FG
+        std::uint8_t* ExtraCompositeLayerForegroundScanResult = Memory::PatternScan(exeModule, "4C 8D ?? ?? ?? ?? ?? BE 01 00 00 00 48 8D ?? ?? ?? 40 88 ?? ?? ?? 66 89 ?? ?? ?? C6 44 ?? ?? 00");
+        if (ExtraCompositeLayerForegroundScanResult) {
+            spdlog::info("HUD: Extra Composite Layer: Foreground: Address is {:s}+{:x}", sExeName.c_str(), ExtraCompositeLayerForegroundScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid ExtraCompositeLayerForegroundMidHook{};
+            ExtraCompositeLayerForegroundMidHook = safetyhook::create_mid(ExtraCompositeLayerForegroundScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio != fNativeAspect) {
+                        // Set render target dimensions. 
+                        ctx.rdx = (static_cast<uintptr_t>(iCompositeLayerY) << 32) | (static_cast<uintptr_t>(iCompositeLayerX) & 0xFFFFFFFF);
+                    }
+                });
+        }
+        else {
+            spdlog::error("HUD: Extra Composite Layer: Foreground: Pattern scan failed.");
+        }
+
+        // Extra Composite Layer Rect
+        std::uint8_t* ExtraCompositeLayerRectScanResult = Memory::PatternScan(exeModule, "C5 ?? ?? ?? ?? C7 ?? ?? 00 00 80 3F 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? E8 ?? ?? ?? ??");
+        if (ExtraCompositeLayerRectScanResult) {
+            spdlog::info("HUD: Extra Composite Layer: Rect: Address is {:s}+{:x}", sExeName.c_str(), ExtraCompositeLayerRectScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid ExtraCompositeLayerRectMidHook{};
+            ExtraCompositeLayerRectMidHook = safetyhook::create_mid(ExtraCompositeLayerRectScanResult + 0x5,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio != fNativeAspect) {
+                        *reinterpret_cast<float*>(ctx.rcx + 0x10) = fHUDWidthOffset;                    // Left
+                        *reinterpret_cast<float*>(ctx.rcx + 0x14) = fHUDHeightOffset;                   // Top
+                        *reinterpret_cast<float*>(ctx.rcx + 0x1C) = fHUDWidth + fHUDWidthOffset;        // Right
+                        *reinterpret_cast<float*>(ctx.rcx + 0x20) = fHUDHeight + fHUDHeightOffset;      // Bottom
+                    }
+                });
+        }
+        else {
+            spdlog::error("HUD: Extra Composite Layer: Rect: Pattern scan failed.");
         }
 
         // HUD Size
