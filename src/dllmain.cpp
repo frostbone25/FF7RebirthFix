@@ -228,7 +228,7 @@ void CalculateHUD(bool bLog)
     }
 
     // Calculate HUD scale
-    fHUDScale = std::round(fHUDHeight * (1.00f / 1080.00f) * 100.00f) / 100.00f;
+    fHUDScale = std::round(fHUDHeight * (1.00f / 1080.00f) * 10000.00f) / 10000.00f;
 
     // Log details about current HUD size
     if (bLog) {
