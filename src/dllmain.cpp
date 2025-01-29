@@ -175,7 +175,7 @@ void CalculateAspectRatio(bool bLog)
 
 void CalculateHUD(bool bLog)
 {
-    const int MAX_RENDER_TARGET_SIZE = 16384;
+    const int MAX_RENDER_TARGET_SIZE = 8192;
     float ResScale = 1.00f;
 
     if (fHUDResScale == 0.00f) {
@@ -204,7 +204,7 @@ void CalculateHUD(bool bLog)
     iCompositeLayerX = static_cast<int>(iCompositeLayerX * ResScale);
     iCompositeLayerY = static_cast<int>(iCompositeLayerY * ResScale);
 
-    // Don't allow resolution of render target to exceed 16384 on X/Y axis
+    // Don't allow resolution of render target to exceed 8192 on X/Y axis so that people don't kill performance and thrash VRAM
     if (iCompositeLayerX > MAX_RENDER_TARGET_SIZE || iCompositeLayerY > MAX_RENDER_TARGET_SIZE) {
         float scaleFactorX = static_cast<float>(MAX_RENDER_TARGET_SIZE) / iCompositeLayerX;
         float scaleFactorY = static_cast<float>(MAX_RENDER_TARGET_SIZE) / iCompositeLayerY;
