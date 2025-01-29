@@ -547,12 +547,12 @@ void HUD()
                 [](SafetyHookContext& ctx) {
                     if (!bMovieIsPlaying) {
                         if (fAspectRatio > fNativeAspect) {
-                            ctx.xmm0.f32[0] = (ctx.xmm0.f32[1] * fAspectRatio);
-                            ctx.xmm0.f32[1] += 32.00f; // Add some extra height to account for HUD scale imprecision.
+                            ctx.xmm0.f32[0] = (ctx.xmm0.f32[1] * fAspectRatio) + 64.00f;
+                            ctx.xmm0.f32[1] += 64.00f;
                         }
                         else if (fAspectRatio < fNativeAspect) {
-                            ctx.xmm0.f32[0] += 32.00f; // Add some extra width to account for HUD scale imprecision.
-                            ctx.xmm0.f32[1] = (ctx.xmm0.f32[0] / fAspectRatio);
+                            ctx.xmm0.f32[0] += 64.00f;
+                            ctx.xmm0.f32[1] = (ctx.xmm0.f32[0] / fAspectRatio) + 64.00f;
                         }
                     }
                 });
