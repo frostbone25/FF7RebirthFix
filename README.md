@@ -29,6 +29,7 @@ This is an ASI plugin for for Final Fantasy VII Rebirth that adds ultrawide/narr
 ## Known Issues
 #### Ultrawide/Narrower
 - Some button prompts may appear off-screen or move with the camera.
+- Shooting is offset in the Barret minecart minigame.
 
 ## Recommended Mods
 - [FFVIIHook](https://www.nexusmods.com/finalfantasy7rebirth/mods/4) by [emoose](https://github.com/emoose) - Unlocks the console, allows overriding certain cvars and more.
