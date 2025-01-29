@@ -376,6 +376,22 @@ void AspectRatioFOV()
         else {
             spdlog::error("Gameplay FOV: Pattern scan failed.");
         }
+
+        // Chocobo FOV
+        std::uint8_t* ChocoboFOVScanResult = Memory::PatternScan(exeModule, "89 ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? E8 ?? ?? ?? ?? 44 ?? ?? ?? 75 ?? E8 ?? ?? ?? ??");
+        if (ChocoboFOVScanResult) {
+            spdlog::info("Gameplay FOV: Chocobo: Address is {:s}+{:x}", sExeName.c_str(), ChocoboFOVScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid ChocoboFOVMidHook{};
+            ChocoboFOVMidHook = safetyhook::create_mid(ChocoboFOVScanResult,
+                [](SafetyHookContext& ctx) {
+                    float fov = *reinterpret_cast<float*>(&ctx.rax);
+                    fov *= fFOVMulti;
+                    ctx.rax = *(uint32_t*)&fov;
+                });
+        }
+        else {
+            spdlog::error("Gameplay FOV: Chocobo: Pattern scan failed.");
+        }
     }
 }
 
