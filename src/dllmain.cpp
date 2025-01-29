@@ -467,6 +467,31 @@ void HUD()
             spdlog::error("HUD: Size: Pattern scan failed.");
         }
 
+        // Menu Highlights
+        std::uint8_t* HUDMenuHighlightsScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? C4 E2 ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 48 8D ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 FA ?? ?? ?? ??");
+        if (HUDMenuHighlightsScanResult) {
+            spdlog::info("HUD: Menu Highlights: Address is {:s}+{:x}", sExeName.c_str(), HUDMenuHighlightsScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid HUDMenuHighlightsWidthMidHook{};
+            HUDMenuHighlightsWidthMidHook = safetyhook::create_mid(HUDMenuHighlightsScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio != fNativeAspect) {
+                        ctx.xmm0.f32[0] -= fHUDWidthOffset;
+                        ctx.xmm4.f32[0] = 1.00f / fHUDScale;
+                    }
+                });
+
+            static SafetyHookMid HUDMenuHighlightsHeightMidHook{};
+            HUDMenuHighlightsHeightMidHook = safetyhook::create_mid(HUDMenuHighlightsScanResult + 0x25,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio != fNativeAspect) {
+                        ctx.xmm0.f32[0] -= fHUDHeightOffset;
+                    }
+                });
+        }
+        else {
+            spdlog::error("HUD: Menu Highlights: Pattern scan failed.");
+        }
+
         // Map
         std::uint8_t* HUDMapScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? 48 8B ?? ?? ?? ?? ?? C5 FA ?? ?? ?? C5 FA ?? ?? C5 FA ?? ?? ?? 68");
         if (HUDMapScanResult) {
