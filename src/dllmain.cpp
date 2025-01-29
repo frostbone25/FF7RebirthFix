@@ -329,7 +329,9 @@ void AspectRatioFOV()
         else {
             spdlog::error("Aspect Ratio/FOV: Pattern scan failed.");
         }
+    }
 
+    if (bFixAspect) {
         // White screen bug with TAA
         // TODO: This is kind of a hack solution. NSight/RenderDoc for more info?
         std::uint8_t* WhiteScreenBugScanResult = Memory::PatternScan(exeModule, "C7 45 ?? 38 04 00 00 48 8D ?? ?? ?? ?? ?? 75 ?? 48 8D ?? ?? ?? ?? ?? 45 33 ??");
@@ -340,6 +342,32 @@ void AspectRatioFOV()
         }
         else {
             spdlog::error("White Screen Bug: Pattern scan failed.");
+        }
+
+        // Minecart Minigame
+        std::uint8_t* MinecartMinigameScanResult = Memory::PatternScan(exeModule, "48 8B ?? ?? ?? ?? ?? C5 FA ?? ?? C5 FA ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? C5 F2 ?? ?? C5 F2 ?? ?? ?? ?? ?? ??");
+        if (MinecartMinigameScanResult) {
+            spdlog::info("Minecart Minigame: Address is {:s}+{:x}", sExeName.c_str(), MinecartMinigameScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid MinecartMinigameWidthMidHook{};
+            MinecartMinigameWidthMidHook = safetyhook::create_mid(MinecartMinigameScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio > fNativeAspect) {
+                        ctx.xmm4.f32[0] = iCurrentResY * fNativeAspect;
+                        ctx.xmm0.f32[0] -= (iCurrentResX - ctx.xmm4.f32[0]) / 2.00f;
+                    }
+                });
+
+            static SafetyHookMid MinecartMinigameHeightMidHook{};
+            MinecartMinigameHeightMidHook = safetyhook::create_mid(MinecartMinigameScanResult + 0x1B,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio < fNativeAspect) {
+                        ctx.xmm3.f32[0] = iCurrentResX / fNativeAspect;
+                        ctx.xmm1.f32[0] -= (iCurrentResY - ctx.xmm3.f32[0]) / 2.00f;
+                    }
+                });
+        }
+        else {
+            spdlog::error("Minecart Minigame: Pattern scan failed.");
         }
     }
 
@@ -596,27 +624,6 @@ void HUD()
         }
         else {
             spdlog::error("HUD: Fades: Pattern scan failed.");
-        }
-
-        // Minecart Minigame
-        std::uint8_t* MinecartMinigameScanResult = Memory::PatternScan(exeModule, "48 85 ?? 74 ?? 80 ?? ?? ?? ?? ?? 00 74 ?? C5 ?? ?? ?? C4 ?? ?? ?? ?? 45 33 ??");
-        if (MinecartMinigameScanResult) {
-            spdlog::info("HUD: Minecart Minigame: Address is {:s}+{:x}", sExeName.c_str(), MinecartMinigameScanResult - (std::uint8_t*)exeModule);
-            static SafetyHookMid MinecartMinigameMidHook{};
-            MinecartMinigameMidHook = safetyhook::create_mid(MinecartMinigameScanResult,
-                [](SafetyHookContext& ctx) {
-                    if (fAspectRatio > fNativeAspect) {
-                        ctx.xmm2.f32[0] *= fAspectMultiplier;
-                        ctx.xmm2.f32[0] -= ((1080.00f * fAspectRatio) - 1920.00f) / 2.00f;
-                    }
-                    else if (fAspectRatio < fNativeAspect) {
-                        ctx.xmm0.f32[0] /= fAspectMultiplier;
-                        ctx.xmm0.f32[0] -= ((1920.00f / fAspectRatio) - 1080.00f) / 2.00f;
-                    }
-                });
-        }
-        else {
-            spdlog::error("HUD: Minecart Minigame: Pattern scan failed.");
         }
     }
 
