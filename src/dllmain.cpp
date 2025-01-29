@@ -44,7 +44,8 @@ bool bFixHUD;
 bool bFixMovies;
 float fFramerateLimit = 120.00f;
 float fGameplayFOVMulti;
-bool bDisableVignette;
+bool bAutoVignette;
+float fVignetteStrength;
 float fHUDResScale;
 
 // Variables
@@ -131,11 +132,13 @@ void Configuration()
     inipp::get_value(ini.sections["Fix Movies"], "Enabled", bFixMovies);
     inipp::get_value(ini.sections["Framerate"], "FPS", fFramerateLimit);
     inipp::get_value(ini.sections["Gameplay FOV"], "Multiplier", fGameplayFOVMulti);
-    inipp::get_value(ini.sections["Vignette"], "Disabled", bDisableVignette);
+    inipp::get_value(ini.sections["Vignette"], "Auto", bAutoVignette);
+    inipp::get_value(ini.sections["Vignette"], "Strength", fVignetteStrength);
 
     // Clamp settings to avoid breaking things
     if (fHUDResScale != 0.00f)
         fHUDResScale = std::clamp(fHUDResScale, 0.00f, 5.00f);
+    fVignetteStrength = std::clamp(fVignetteStrength, 0.00f, 1.00f);
 
     // Log ini parse
     spdlog_confparse(bFixAspect);
@@ -144,7 +147,8 @@ void Configuration()
     spdlog_confparse(bFixMovies);
     spdlog_confparse(fFramerateLimit);
     spdlog_confparse(fGameplayFOVMulti);
-    spdlog_confparse(bDisableVignette);
+    spdlog_confparse(bAutoVignette);
+    spdlog_confparse(fVignetteStrength);
 
     spdlog::info("----------");
 }
@@ -333,7 +337,7 @@ void AspectRatioFOV()
         }
     }
 
-    if (bFixAspect || bDisableVignette) {
+    if (bAutoVignette || fVignetteStrength != 1.00f) {
         // Vignette 
         std::uint8_t* VignetteScanResult = Memory::PatternScan(exeModule, "4C 89 ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ?? 44 89 ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ??");
         if (VignetteScanResult) {
@@ -341,9 +345,9 @@ void AspectRatioFOV()
             static SafetyHookMid VignetteMidHook{};
             VignetteMidHook = safetyhook::create_mid(VignetteScanResult,
                 [](SafetyHookContext& ctx) {
-                    if (bDisableVignette)
-                        *reinterpret_cast<float*>(ctx.rbx + 0x464) = 0.00f;
-                    else if (bFixAspect && fAspectRatio > fNativeAspect)
+                    if (!bAutoVignette)
+                        *reinterpret_cast<float*>(ctx.rbx + 0x464) = fVignetteStrength;
+                    else if (bAutoVignette && fAspectRatio > fNativeAspect)
                         *reinterpret_cast<float*>(ctx.rbx + 0x464) = 1.00f / fAspectMultiplier;
                 });
         }
