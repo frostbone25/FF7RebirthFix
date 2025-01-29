@@ -597,6 +597,27 @@ void HUD()
         else {
             spdlog::error("HUD: Fades: Pattern scan failed.");
         }
+
+        // Minecart Minigame
+        std::uint8_t* MinecartMinigameScanResult = Memory::PatternScan(exeModule, "48 85 ?? 74 ?? 80 ?? ?? ?? ?? ?? 00 74 ?? C5 ?? ?? ?? C4 ?? ?? ?? ?? 45 33 ??");
+        if (MinecartMinigameScanResult) {
+            spdlog::info("HUD: Minecart Minigame: Address is {:s}+{:x}", sExeName.c_str(), MinecartMinigameScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid MinecartMinigameMidHook{};
+            MinecartMinigameMidHook = safetyhook::create_mid(MinecartMinigameScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio > fNativeAspect) {
+                        ctx.xmm2.f32[0] *= fAspectMultiplier;
+                        ctx.xmm2.f32[0] -= ((1080.00f * fAspectRatio) - 1920.00f) / 2.00f;
+                    }
+                    else if (fAspectRatio < fNativeAspect) {
+                        ctx.xmm0.f32[0] /= fAspectMultiplier;
+                        ctx.xmm0.f32[0] -= ((1920.00f / fAspectRatio) - 1080.00f) / 2.00f;
+                    }
+                });
+        }
+        else {
+            spdlog::error("HUD: Minecart Minigame: Pattern scan failed.");
+        }
     }
 
     if (bFixMovies) {
