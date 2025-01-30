@@ -27,6 +27,7 @@ This is an ASI plugin for for Final Fantasy VII Rebirth that adds ultrawide/narr
 - See **FF7RebirthFix.ini** to adjust settings.
 
 ## Known Issues
+Please report any issues you see. This list will contain bugs which may or may not be fixed.
 #### Ultrawide/Narrower
 - Some button prompts in QTE sequences may appear off-screen or move with the camera.
 
