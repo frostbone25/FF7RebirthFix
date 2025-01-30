@@ -13,7 +13,7 @@ HMODULE thisModule;
 
 // Fix details
 std::string sFixName = "FF7RebirthFix";
-std::string sFixVersion = "0.0.6";
+std::string sFixVersion = "0.0.7";
 std::filesystem::path sFixPath;
 
 // Ini
@@ -138,8 +138,7 @@ void Configuration()
     inipp::get_value(ini.sections["Vignette"], "Strength", fVignetteStrength);
 
     // Clamp settings to avoid breaking things
-    if (fHUDResScale != 0.00f)
-        fHUDResScale = std::clamp(fHUDResScale, 0.00f, 5.00f);
+    fHUDResScale = std::clamp(fHUDResScale, 0.00f, 3.00f);
     fVignetteStrength = std::clamp(fVignetteStrength, 0.00f, 1.00f);
 
     // Log ini parse
@@ -178,7 +177,7 @@ void CalculateAspectRatio(bool bLog)
 
 void CalculateHUD(bool bLog)
 {
-    const int MAX_RENDER_TARGET_SIZE = 8192;
+    const int MAX_RENDER_TARGET_SIZE = 16384;
     float ResScale = 1.00f;
 
     if (fHUDResScale == 0.00f) {
@@ -235,7 +234,7 @@ void CalculateHUD(bool bLog)
     }
 
     // Calculate HUD scale
-    fHUDScale = std::round(fHUDHeight * (1.00f / 1080.00f) * 10000.00f) / 10000.00f;
+    fHUDScale = std::round(fHUDHeight * (1.00f / 1080.00f) * 100.00f) / 100.00f;
 
     // Log details about current HUD size
     if (bLog) {
