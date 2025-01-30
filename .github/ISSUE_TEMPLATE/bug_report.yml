@@ -1,7 +1,7 @@
 name: Bug Report
 description: Report an issue with FF7RebirthFix
 title: "[Bug]: "
-labels: bug
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
@@ -42,7 +42,7 @@ body:
     id: log-file
     attributes:
       label: "Log File (`FF7RebirthFix.log`)"
-      description: "Please upload `FF7RebirthFix.log` from `FINAL FANTASY VII REBIRTH\End\Binaries\Win64`."
+      description: "Please upload `FF7RebirthFix.log` from `FINAL FANTASY VII REBIRTH\\End\\Binaries\\Win64`."
     validations:
       required: true
 
@@ -50,6 +50,6 @@ body:
     id: save-file
     attributes:
       label: "Save Game (If Relevant)"
-      description: "If the subject of the issue can be accessed through a save game, please attach the relevant save file from:\n`%USERPROFILE%\Documents\My Games\FINAL FANTASY VII REBIRTH\Steam\<user-id>\`"
+      description: "If the subject of the issue can be accessed through a save game, please attach the relevant save file from:\n`%USERPROFILE%\\Documents\\My Games\\FINAL FANTASY VII REBIRTH\\Steam\\<user-id>\\`"
     validations:
       required: false
