@@ -546,19 +546,29 @@ void HUD()
         }
 
         // Map
-        std::uint8_t* HUDMapScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? 48 8B ?? ?? ?? ?? ?? C5 FA ?? ?? ?? C5 FA ?? ?? C5 FA ?? ?? ?? 68");
-        if (HUDMapScanResult) {
-            spdlog::info("HUD: Map: Address is {:s}+{:x}", sExeName.c_str(), HUDMapScanResult - (std::uint8_t*)exeModule);
-            static SafetyHookMid HUDMapMidHook{};
-            HUDMapMidHook = safetyhook::create_mid(HUDMapScanResult + 0x5,
+        std::uint8_t* HUDMapUpperScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? 48 8B ?? ?? ?? ?? ?? C5 FA ?? ?? ?? C5 FA ?? ?? C5 FA ?? ?? ?? 68");
+        std::uint8_t* HUDMapLowerScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? C5 FA ?? ?? ?? C5 ?? ?? ?? 48 8B ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 FA ?? ?? ?? ?? C5 FA ?? ?? ?? 48 8B ??");
+        if (HUDMapUpperScanResult && HUDMapLowerScanResult) {
+            spdlog::info("HUD: Map: Upper: Address is {:s}+{:x}", sExeName.c_str(), HUDMapUpperScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid HUDMapUpperMidHook{};
+            HUDMapUpperMidHook = safetyhook::create_mid(HUDMapUpperScanResult + 0x5,
                 [](SafetyHookContext& ctx) {
                     if (fAspectRatio != fNativeAspect) {
                         ctx.xmm0.f32[0] = fHUDScale;
                     }    
                 });
+
+            spdlog::info("HUD: Map: Lower: Address is {:s}+{:x}", sExeName.c_str(), HUDMapLowerScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid HUDMapLowerMidHook{};
+            HUDMapLowerMidHook = safetyhook::create_mid(HUDMapLowerScanResult + 0x5,
+                [](SafetyHookContext& ctx) {
+                    if (fAspectRatio != fNativeAspect) {
+                        ctx.xmm0.f32[0] = fHUDScale;
+                    }
+                });
         }
         else {
-            spdlog::error("HUD: Map: Pattern scan failed.");
+            spdlog::error("HUD: Map: Pattern scan(s) failed.");
         }
 
         // QTE Prompts
