@@ -41,7 +41,7 @@ body:
   - type: textarea
     id: log-file
     attributes:
-      label: "Log File (`FF7RebirthFix.log`)"
+      label: "Log File"
       description: "Please upload `FF7RebirthFix.log` from `FINAL FANTASY VII REBIRTH\\End\\Binaries\\Win64`."
     validations:
       required: true
