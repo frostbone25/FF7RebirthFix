@@ -1,6 +1,9 @@
 ﻿#include "stdafx.h"
 #include "helper.hpp"
 
+#include "SDK/Engine_classes.hpp"
+#include "SDK/Pause_00_classes.hpp"
+
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <inipp/inipp.h>
@@ -48,6 +51,8 @@ float fFOVMulti;
 bool bAutoVignette;
 float fVignetteStrength;
 float fHUDResScale;
+int iCustomResX;
+int iCustomResY;
 
 // Variables
 int iCurrentResX;
@@ -127,30 +132,36 @@ void Configuration()
     spdlog::info("----------");
 
     // Load settings from ini
-    inipp::get_value(ini.sections["Fix Aspect Ratio"], "Enabled", bFixAspect);
-    inipp::get_value(ini.sections["Fix HUD"], "Enabled", bFixHUD);
-    inipp::get_value(ini.sections["Fix HUD"], "ResScale", fHUDResScale);
-    inipp::get_value(ini.sections["Fix Movies"], "Enabled", bFixMovies);
     inipp::get_value(ini.sections["Framerate"], "FPS", fFramerateLimit);
     inipp::get_value(ini.sections["FOV"], "Global", bGlobalFOVMulti);
     inipp::get_value(ini.sections["FOV"], "Multiplier", fFOVMulti);
     inipp::get_value(ini.sections["Vignette"], "Auto", bAutoVignette);
     inipp::get_value(ini.sections["Vignette"], "Strength", fVignetteStrength);
 
+    inipp::get_value(ini.sections["Custom Resolution"], "Width", iCustomResX);
+    inipp::get_value(ini.sections["Custom Resolution"], "Height", iCustomResY);
+    inipp::get_value(ini.sections["Fix Aspect Ratio"], "Enabled", bFixAspect);
+    inipp::get_value(ini.sections["Fix HUD"], "Enabled", bFixHUD);
+    inipp::get_value(ini.sections["Fix HUD"], "ResScale", fHUDResScale);
+    inipp::get_value(ini.sections["Fix Movies"], "Enabled", bFixMovies);
+
     // Clamp settings to avoid breaking things
     fHUDResScale = std::clamp(fHUDResScale, 0.00f, 3.00f);
     fVignetteStrength = std::clamp(fVignetteStrength, 0.00f, 1.00f);
 
     // Log ini parse
-    spdlog_confparse(bFixAspect);
-    spdlog_confparse(bFixHUD);
-    spdlog_confparse(fHUDResScale);
-    spdlog_confparse(bFixMovies);
     spdlog_confparse(fFramerateLimit);
     spdlog_confparse(bGlobalFOVMulti);
     spdlog_confparse(fFOVMulti);
     spdlog_confparse(bAutoVignette);
     spdlog_confparse(fVignetteStrength);
+
+    spdlog_confparse(iCustomResX);
+    spdlog_confparse(iCustomResY);
+    spdlog_confparse(bFixAspect);
+    spdlog_confparse(bFixHUD);
+    spdlog_confparse(fHUDResScale);
+    spdlog_confparse(bFixMovies);
 
     spdlog::info("----------");
 }
@@ -234,7 +245,8 @@ void CalculateHUD(bool bLog)
     }
 
     // Calculate HUD scale
-    fHUDScale = std::round(fHUDHeight * (1.00f / 1080.00f) * 100.00f) / 100.00f;
+    fHUDScale = std::ceilf((fHUDHeight / 1080.00f) * 1000.00f) / 1000.00f;
+    fHUDScale += 0.001f;
 
     // Log details about current HUD size
     if (bLog) {
@@ -252,6 +264,46 @@ void CalculateHUD(bool bLog)
     bHUDNeedsResize = false;
 }
 
+void UpdateOffsets()
+{
+    // GObjects
+    std::uint8_t* GObjectsScanResult = Memory::PatternScan(exeModule, "48 8B ?? ?? ?? ?? ?? 48 8B ?? ?? 48 8D ?? ?? EB ?? 33 ??");
+    if (GObjectsScanResult) {
+        spdlog::info("Offsets: GObjects: Address is {:s}+{:x}", sExeName.c_str(), GObjectsScanResult - (std::uint8_t*)exeModule);
+        std::uint8_t* GObjectsAddr = Memory::GetAbsolute(GObjectsScanResult + 0x3);
+        SDK::Offsets::GObjects = static_cast<UC::uint32>(GObjectsAddr - (std::uint8_t*)exeModule);
+        spdlog::info("Offsets: GObjects: {:x}", SDK::Offsets::GObjects);
+    }
+    else {
+        spdlog::error("Offsets: GObjects: Pattern scan failed.");
+    }
+
+    // GNames
+    std::uint8_t* GNamesScanResult = Memory::PatternScan(exeModule, "48 8D ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? 4C 8B ?? C6 ?? ?? ?? ?? ?? 01");
+    if (GNamesScanResult) {
+        spdlog::info("Offsets: GNames: Address is {:s}+{:x}", sExeName.c_str(), GNamesScanResult - (std::uint8_t*)exeModule);
+        std::uint8_t* GNamesAddr = Memory::GetAbsolute(GNamesScanResult + 0x3);
+        SDK::Offsets::GNames = static_cast<UC::uint32>(GNamesAddr - (std::uint8_t*)exeModule);
+        spdlog::info("Offsets: GNames: {:x}", SDK::Offsets::GNames);
+    }
+    else {
+        spdlog::error("Offsets: GNames: Pattern scan failed.");
+    }
+
+    // ProcessEvent
+    std::uint8_t* ProcessEventScanResult = Memory::PatternScan(exeModule, "40 ?? 56 57 41 ?? 41 ?? 41 ?? 41 ?? B8 ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 ?? ?? 48 8D ?? ?? ?? 48 89 ?? ?? ?? ?? ?? 48 8B ?? ?? ?? ?? ?? 48 33 ?? 48 89 ?? ?? ?? ?? ?? 8B ?? ?? 45 33 ??");
+    if (ProcessEventScanResult) {
+        spdlog::info("Offsets: ProcessEvent: Address is {:s}+{:x}", sExeName.c_str(), ProcessEventScanResult - (std::uint8_t*)exeModule);
+        SDK::Offsets::ProcessEvent = static_cast<UC::uint32>(ProcessEventScanResult - (std::uint8_t*)exeModule);
+        spdlog::info("Offsets: ProcessEvent: {:x}", SDK::Offsets::ProcessEvent);
+    }
+    else {
+        spdlog::error("Offsets: ProcessEvent: Pattern scan failed.");
+    }
+
+    spdlog::info("----------");
+}
+
 void CurrentResolution()
 {
     // Grab desktop resolution
@@ -261,8 +313,16 @@ void CurrentResolution()
     std::uint8_t* WindowedResListScanResult = Memory::PatternScan(exeModule, "C7 ?? ?? ?? 00 0F 00 00 C7 ?? ?? ?? 70 08 00 00");
     if (WindowedResListScanResult) {
         spdlog::info("Windowed Resolution List: Address is {:s}+{:x}", sExeName.c_str(), WindowedResListScanResult - (std::uint8_t*)exeModule);
-        Memory::Write(WindowedResListScanResult + 0x4, DesktopDimensions.first);
-        Memory::Write(WindowedResListScanResult + 0xC, DesktopDimensions.second);
+        if (iCustomResX <= 0 || iCustomResY <= 0) {
+            Memory::Write(WindowedResListScanResult + 0x4, DesktopDimensions.first);
+            Memory::Write(WindowedResListScanResult + 0xC, DesktopDimensions.second);
+            spdlog::info("Windowed Resolution List: Replaced 3840x2160 with {}x{}", DesktopDimensions.first, DesktopDimensions.second);
+        }
+        else {
+            Memory::Write(WindowedResListScanResult + 0x4, iCustomResX);
+            Memory::Write(WindowedResListScanResult + 0xC, iCustomResY);
+            spdlog::info("Windowed Resolution List: Replaced 3840x2160 with {}x{}", iCustomResX, iCustomResY);
+        }
     }
     else {
         spdlog::error("Windowed Resolution List: Pattern scan failed.");
@@ -640,7 +700,7 @@ void HUD()
         // Movies
         std::uint8_t* HideMovieScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? EB ?? 33 ?? 48 39 ?? ?? ?? ?? ?? 74 ?? C3");
         std::uint8_t* ShowMovieScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? 48 8B ?? ?? ?? 48 83 ?? ?? 5F C3 E8 ?? ?? ?? ?? EB ?? 33 ?? 48 39 ?? ?? ?? ?? ?? 74 ?? C3");
-        if (HideMovieScanResult && ShowMovieScanResult) {
+        if (!HideMovieScanResult && ShowMovieScanResult) {
             spdlog::info("HUD: Movie: Hide: Address is {:s}+{:x}", sExeName.c_str(), HideMovieScanResult - (std::uint8_t*)exeModule);
 
             static SafetyHookMid HideMovieMidHook{};
@@ -665,6 +725,65 @@ void HUD()
         else {
             spdlog::error("HUD: Movie: Pattern scan(s) failed.");
         }
+    }
+
+    // HUD Widgets
+    std::uint8_t* HUDWidgetsScanResult = Memory::PatternScan(exeModule, "48 8D ?? ?? ?? ?? ?? 89 ?? ?? ?? 8B ?? ?? 89 ?? ?? ?? 49 ?? ?? 48 89 ?? ?? ?? E8 ?? ?? ?? ?? 48 8B ?? 48 85 ?? 74 ??");
+    if (HUDWidgetsScanResult) {
+        static SDK::UObject* obj = nullptr;
+        static SDK::UObject* oldObj = nullptr;
+
+        static std::string objName;
+        static std::string objOldName;
+
+        static SDK::UPause_00_C* pauseMenu = nullptr;
+
+        spdlog::info("HUD: Widgets: Address is {:s}+{:x}", sExeName.c_str(), HUDWidgetsScanResult - (std::uint8_t*)exeModule);
+        static SafetyHookMid HUDWidgetsMidHook{};
+        HUDWidgetsMidHook = safetyhook::create_mid(Memory::GetAbsolute(HUDWidgetsScanResult + 0x3),
+            [](SafetyHookContext& ctx) {
+                obj = (SDK::UObject*)ctx.rcx;
+
+                // Check if object has changed
+                if (obj != oldObj) {
+                    oldObj = obj;
+
+                    // Only store the name of the object when it has changed
+                    objName = obj->GetName();
+
+                    // "Pause_00_C", "simple" pause menu
+                    if (objName.contains("Pause_00_C") && pauseMenu != obj) {
+                        #ifdef _DEBUG
+                        spdlog::info("Pause Menu: = {}", objName);
+                        spdlog::info("Pause Menu: Address: {:x}", (uintptr_t)obj);
+                        #endif
+
+                        // Cache pauseMenu address
+                        pauseMenu = (SDK::UPause_00_C*)obj;
+
+                        // Get canvas panel and relevant panel slots
+                        SDK::UEndCanvasPanel* pausePanel = (SDK::UEndCanvasPanel*)pauseMenu->WidgetTree->RootWidget;
+                        SDK::UEndCanvasPanelSlot* pausePanelBG = (SDK::UEndCanvasPanelSlot*)pausePanel->Slots[0];
+                        SDK::UEndCanvasPanelSlot* pausePanelGradient = (SDK::UEndCanvasPanelSlot*)pausePanel->Slots[1];
+
+                        // Offsets are (0.00f, 0.00f, 1920.00f, 1080.00f)
+                        SDK::FMargin offsets = pausePanelBG->GetOffsets();
+
+                        // Adjust offsets to allow backgrounds to fill the screen
+                        if (fAspectRatio > fNativeAspect)
+                            offsets.RIGHT = 1080.00f * fAspectRatio;
+                        else if (fAspectRatio < fNativeAspect)
+                            offsets.Bottom = 1920.00f / fAspectRatio;
+
+                        // Set adjusted offsets
+                        pausePanelBG->SetOffsets(offsets);
+                        pausePanelGradient->SetOffsets(offsets);
+                    }
+                }
+            });
+    }
+    else {
+        spdlog::error("HUD: Widgets: Pattern scan failed.");
     }
 }
 
@@ -697,6 +816,7 @@ DWORD __stdcall Main(void*)
 {
     Logging();
     Configuration();
+    UpdateOffsets();
     CurrentResolution();
     AspectRatioFOV();
     HUD();
