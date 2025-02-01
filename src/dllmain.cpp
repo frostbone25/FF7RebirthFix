@@ -896,6 +896,7 @@ void Misc()
         }
     }
 
+    /*
     static bool bHasSkippedIntro = false;
 
     // Title menu
@@ -927,8 +928,9 @@ void Misc()
             [](SafetyHookContext& ctx) {
                 if (!bHasSkippedIntro) {
                     SDK::UEndStartMenu* menu = (SDK::UEndStartMenu*)ctx.rdi;
-                    menu->OnLoadLatest();
+                    //menu->OnLoadLatest();
                     bHasSkippedIntro = true;
+                    SDK::UGameplayStatics::LoadGameFromSlot(L"0", 0);
                     #ifdef _DEBUG
                     spdlog::info("Start Menu: {:x} | {}", (uintptr_t)menu, menu->GetFullName());
                     #endif
@@ -938,6 +940,7 @@ void Misc()
     else {
         spdlog::error("Start Menu: Pattern scan failed.");
     }
+    */
 }
 
 DWORD __stdcall Main(void*)
