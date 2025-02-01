@@ -355,10 +355,6 @@ void CurrentResolution()
         static SafetyHookMid CurrentResolutionMidHook{};
         CurrentResolutionMidHook = safetyhook::create_mid(CurrentResolutionScanResult,
             [](SafetyHookContext& ctx) {
-                SDK::UWorld* World = SDK::UWorld::GetWorld();
-                SDK::APlayerController* MyController = World->OwningGameInstance->LocalPlayers[0]->PlayerController;
-                spdlog::info("PlayerController = {:x}", (uintptr_t)MyController);
-
                 // Read resolution
                 int iResX = static_cast<int>(ctx.rsi);
                 int iResY = static_cast<int>(ctx.rdi);
