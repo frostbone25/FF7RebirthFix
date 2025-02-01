@@ -3,6 +3,12 @@
 
 #include "SDK/Engine_classes.hpp"
 #include "SDK/Pause_00_classes.hpp"
+#include "SDK/Command_classes.hpp"
+#include "SDK/VR_StartScreen_classes.hpp"
+#include "SDK/VR_Top_classes.hpp"
+#include "SDK/Com_Window_01_classes.hpp"
+#include "SDK/Status_classes.hpp"
+#include "SDK/AreaMap_classes.hpp"
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -700,7 +706,7 @@ void HUD()
         // Movies
         std::uint8_t* HideMovieScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? EB ?? 33 ?? 48 39 ?? ?? ?? ?? ?? 74 ?? C3");
         std::uint8_t* ShowMovieScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? 48 8B ?? ?? ?? 48 83 ?? ?? 5F C3 E8 ?? ?? ?? ?? EB ?? 33 ?? 48 39 ?? ?? ?? ?? ?? 74 ?? C3");
-        if (!HideMovieScanResult && ShowMovieScanResult) {
+        if (HideMovieScanResult && ShowMovieScanResult) {
             spdlog::info("HUD: Movie: Hide: Address is {:s}+{:x}", sExeName.c_str(), HideMovieScanResult - (std::uint8_t*)exeModule);
 
             static SafetyHookMid HideMovieMidHook{};
@@ -737,6 +743,11 @@ void HUD()
         static std::string objOldName;
 
         static SDK::UPause_00_C* pauseMenu = nullptr;
+        static SDK::UCommand_C* command = nullptr;
+        static SDK::UVR_Top_C* vrTop = nullptr;
+        static SDK::UCom_Window_01_C* comWindow = nullptr;
+        static SDK::UStatus_C* partyStatus = nullptr;
+        static SDK::UAreaMap_C* map = nullptr;
 
         spdlog::info("HUD: Widgets: Address is {:s}+{:x}", sExeName.c_str(), HUDWidgetsScanResult - (std::uint8_t*)exeModule);
         static SafetyHookMid HUDWidgetsMidHook{};
@@ -751,23 +762,60 @@ void HUD()
                     // Only store the name of the object when it has changed
                     objName = obj->GetName();
 
+                    //spdlog::info("Obj = {}", objName);
+                    //spdlog::info("Obj addr = {:x}", (uintptr_t)obj);
+
+                    // "Command_C", battle command list
+                    if (objName.contains("Command_C") && command != obj) {
+                        #ifdef _DEBUG
+                        spdlog::info("HUD: Widgets: Command: {}", objName);
+                        spdlog::info("HUD: Widgets: Command: Address: {:x}", (uintptr_t)obj);
+                        #endif
+
+                        // Cache address
+                        command = (SDK::UCommand_C*)obj;
+                    }
+
+                    // "Status_C", party status
+                    if (objName.contains("Status_C") && partyStatus != obj) {
+                        #ifdef _DEBUG
+                        spdlog::info("HUD: Widgets: Party Status: {}", objName);
+                        spdlog::info("HUD: Widgets: Party Status: Address: {:x}", (uintptr_t)obj);
+                        #endif
+
+                        // Cache address
+                        partyStatus = (SDK::UStatus_C*)obj;
+                    }
+
+                    if (objName.contains("AreaMap_C") && map != obj) {
+                        #ifdef _DEBUG
+                        spdlog::info("HUD: Widgets: Map: {}", objName);
+                        spdlog::info("HUD: Widgets: Map: Address: {:x}", (uintptr_t)obj);
+                        #endif
+
+                        // Cache address
+                        map = (SDK::UAreaMap_C*)obj;
+
+                        // TODO
+                    }
+
                     // "Pause_00_C", "simple" pause menu
                     if (objName.contains("Pause_00_C") && pauseMenu != obj) {
                         #ifdef _DEBUG
-                        spdlog::info("Pause Menu: = {}", objName);
-                        spdlog::info("Pause Menu: Address: {:x}", (uintptr_t)obj);
+                        spdlog::info("HUD: Widgets: Pause Menu: {}", objName);
+                        spdlog::info("HUD: Widgets: Pause Menu: Address: {:x}", (uintptr_t)obj);
                         #endif
 
-                        // Cache pauseMenu address
+                        // Cache address
                         pauseMenu = (SDK::UPause_00_C*)obj;
 
-                        // Get canvas panel and relevant panel slots
-                        SDK::UEndCanvasPanel* pausePanel = (SDK::UEndCanvasPanel*)pauseMenu->WidgetTree->RootWidget;
-                        SDK::UEndCanvasPanelSlot* pausePanelBG = (SDK::UEndCanvasPanelSlot*)pausePanel->Slots[0];
-                        SDK::UEndCanvasPanelSlot* pausePanelGradient = (SDK::UEndCanvasPanelSlot*)pausePanel->Slots[1];
+                        // // Get root widget and panel slot(s)
+                        SDK::UEndCanvasPanel* rootWidget = (SDK::UEndCanvasPanel*)pauseMenu->WidgetTree->RootWidget;
+                        SDK::UEndCanvasPanelSlot* bgSlot = (SDK::UEndCanvasPanelSlot*)rootWidget->Slots[0];
+                        SDK::UEndCanvasPanelSlot* gradientSlot = (SDK::UEndCanvasPanelSlot*)rootWidget->Slots[1];
 
-                        // Offsets are (0.00f, 0.00f, 1920.00f, 1080.00f)
-                        SDK::FMargin offsets = pausePanelBG->GetOffsets();
+                        // Create offsets
+                        SDK::FMargin offsets = SDK::FMargin(0.00f, 0.00f, 1920.00f, 1080.00f);
 
                         // Adjust offsets to allow backgrounds to fill the screen
                         if (fAspectRatio > fNativeAspect)
@@ -776,8 +824,45 @@ void HUD()
                             offsets.Bottom = 1920.00f / fAspectRatio;
 
                         // Set adjusted offsets
-                        pausePanelBG->SetOffsets(offsets);
-                        pausePanelGradient->SetOffsets(offsets);
+                        bgSlot->SetOffsets(offsets);
+                        gradientSlot->SetOffsets(offsets);
+                    }
+
+                    // "Com_Window_01_C", menu dialog window
+                    if (objName.contains("Com_Window_01_C") && comWindow != obj) {
+                        #ifdef _DEBUG
+                        spdlog::info("HUD: Widgets: Com Window: {}", objName);
+                        spdlog::info("HUD: Widgets: Com Window: Address: {:x}", (uintptr_t)obj);
+                        #endif
+
+                        // Cache address
+                        comWindow = (SDK::UCom_Window_01_C*)obj;
+
+                        if (fAspectRatio > fNativeAspect) {
+                            *reinterpret_cast<float*>(ctx.rcx + 0x210) = -(fHUDWidthOffset / fHUDWidth);
+                            *reinterpret_cast<float*>(ctx.rcx + 0x214) = 0.00f;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x218) = 1.00f + (fHUDWidthOffset / fHUDWidth);
+                            *reinterpret_cast<float*>(ctx.rcx + 0x21C) = 1.00f;
+                        }
+                        else if (fAspectRatio < fNativeAspect) {
+                            *reinterpret_cast<float*>(ctx.rcx + 0x210) = 0.00f;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x214) = -(fHUDHeightOffset / fHUDHeight);
+                            *reinterpret_cast<float*>(ctx.rcx + 0x218) = 1.00f;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x21C) = 1.00f + (fHUDHeightOffset / fHUDHeight);
+                        }
+                    }
+
+                    // "VR_Top_C", Chadley VR combat sim
+                    if (objName.contains("VR_Top_C") && vrTop != obj) {
+                        #ifdef _DEBUG
+                        spdlog::info("HUD: Widgets: VR Top: {}", objName);
+                        spdlog::info("HUD: Widgets: VR Top: Address: {:x}", (uintptr_t)obj);
+                        #endif
+
+                        // Cache address
+                        vrTop = (SDK::UVR_Top_C*)obj;
+
+                        // TODO
                     }
                 }
             });
@@ -787,7 +872,7 @@ void HUD()
     }
 }
 
-void Framerate()
+void Misc()
 {
     if (fFramerateLimit != 120.00f) {
         // Replace 120 fps option with desired framerate limit
@@ -810,6 +895,49 @@ void Framerate()
             spdlog::error("Framerate Limit: Pattern scan failed.");
         }
     }
+
+    static bool bHasSkippedIntro = false;
+
+    // Title menu
+    std::uint8_t* TitleMenuScanResult = Memory::PatternScan(exeModule, "48 89 ?? ?? ?? 57 B8 ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 ?? ?? 48 8B ?? E8 ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ?? 48 8B ?? E8 ?? ?? ?? ?? 48 8B ?? 48 85 ?? 0F 84 ?? ?? ?? ?? 48 8B ?? E8 ?? ?? ?? ?? 84 ??  0F 84 ?? ?? ?? ?? B2 01 48 8B ?? E8 ?? ?? ?? ?? BA 01 00 00 00 E8 ?? ?? ?? ?? E8 ?? ?? ?? ?? 41 ?? 03");
+    if (TitleMenuScanResult) {
+        spdlog::info("Title Menu: Address is {:s}+{:x}", sExeName.c_str(), TitleMenuScanResult - (std::uint8_t*)exeModule);
+        static SafetyHookMid TitleMenuMidHook{};
+        TitleMenuMidHook = safetyhook::create_mid(TitleMenuScanResult,
+            [](SafetyHookContext& ctx) {
+                if (!bHasSkippedIntro) {
+                    SDK::UEndTitleMenu* menu = (SDK::UEndTitleMenu*)ctx.rcx;
+                    menu->OnPressedAnyButton();
+                    #ifdef _DEBUG
+                    spdlog::info("Title Menu: {:x} | {}", (uintptr_t)menu, menu->GetFullName());
+                    #endif
+                }
+            });
+    }
+    else {
+        spdlog::error("Title Menu: Pattern scan failed.");
+    }
+
+    // Start menu 
+    std::uint8_t* StartMenuScanResult = Memory::PatternScan(exeModule, "8B ?? ?? ?? ?? ?? 48 8D ?? ?? ?? ?? ?? 48 8B ?? 83 ?? 05 0F 85 ?? ?? ?? ?? E8 ?? ?? ?? ??");
+    if (StartMenuScanResult) {
+        spdlog::info("Start Menu: Address is {:s}+{:x}", sExeName.c_str(), StartMenuScanResult - (std::uint8_t*)exeModule);
+        static SafetyHookMid StartMenuMidHook{};
+        StartMenuMidHook = safetyhook::create_mid((std::uint8_t*)StartMenuScanResult,
+            [](SafetyHookContext& ctx) {
+                if (!bHasSkippedIntro) {
+                    SDK::UEndStartMenu* menu = (SDK::UEndStartMenu*)ctx.rdi;
+                    menu->OnLoadLatest();
+                    bHasSkippedIntro = true;
+                    #ifdef _DEBUG
+                    spdlog::info("Start Menu: {:x} | {}", (uintptr_t)menu, menu->GetFullName());
+                    #endif
+                }
+            });
+    }
+    else {
+        spdlog::error("Start Menu: Pattern scan failed.");
+    }
 }
 
 DWORD __stdcall Main(void*)
@@ -820,7 +948,7 @@ DWORD __stdcall Main(void*)
     CurrentResolution();
     AspectRatioFOV();
     HUD();
-    Framerate();
+    Misc();
 
     return true;
 }
