@@ -9,6 +9,7 @@
 #include "SDK/Com_Window_01_classes.hpp"
 #include "SDK/Status_classes.hpp"
 #include "SDK/AreaMap_classes.hpp"
+#include "SDK/Subtitle00_classes.hpp"
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -59,6 +60,7 @@ float fVignetteStrength;
 float fHUDResScale;
 int iCustomResX;
 int iCustomResY;
+float fSubtitleScale;
 
 // Variables
 int iCurrentResX;
@@ -71,6 +73,15 @@ bool bConsoleIsOpen = false;
 bool bMovieIsPlaying = false;
 int iScreenMode;
 bool bHUDNeedsResize = false;
+
+// HUD Widgets
+SDK::USubtitle00_C* UMGSubtitles = nullptr;
+SDK::UPause_00_C* pauseMenu = nullptr;
+SDK::UCommand_C* command = nullptr;
+SDK::UVR_Top_C* vrTop = nullptr;
+SDK::UCom_Window_01_C* comWindow = nullptr;
+SDK::UStatus_C* partyStatus = nullptr;
+SDK::UAreaMap_C* map = nullptr;
 
 void Logging()
 {
@@ -143,6 +154,7 @@ void Configuration()
     inipp::get_value(ini.sections["FOV"], "Multiplier", fFOVMulti);
     inipp::get_value(ini.sections["Vignette"], "Auto", bAutoVignette);
     inipp::get_value(ini.sections["Vignette"], "Strength", fVignetteStrength);
+    inipp::get_value(ini.sections["Subtitles"], "Size", fSubtitleScale);
 
     inipp::get_value(ini.sections["Custom Resolution"], "Width", iCustomResX);
     inipp::get_value(ini.sections["Custom Resolution"], "Height", iCustomResY);
@@ -154,6 +166,7 @@ void Configuration()
     // Clamp settings to avoid breaking things
     fHUDResScale = std::clamp(fHUDResScale, 0.00f, 3.00f);
     fVignetteStrength = std::clamp(fVignetteStrength, 0.00f, 1.00f);
+    fSubtitleScale = std::clamp(fSubtitleScale, 0.100f, 2.00f);
 
     // Log ini parse
     spdlog_confparse(fFramerateLimit);
@@ -161,6 +174,7 @@ void Configuration()
     spdlog_confparse(fFOVMulti);
     spdlog_confparse(bAutoVignette);
     spdlog_confparse(fVignetteStrength);
+    spdlog_confparse(fSubtitleScale);
 
     spdlog_confparse(iCustomResX);
     spdlog_confparse(iCustomResY);
@@ -341,6 +355,10 @@ void CurrentResolution()
         static SafetyHookMid CurrentResolutionMidHook{};
         CurrentResolutionMidHook = safetyhook::create_mid(CurrentResolutionScanResult,
             [](SafetyHookContext& ctx) {
+                SDK::UWorld* World = SDK::UWorld::GetWorld();
+                SDK::APlayerController* MyController = World->OwningGameInstance->LocalPlayers[0]->PlayerController;
+                spdlog::info("PlayerController = {:x}", (uintptr_t)MyController);
+
                 // Read resolution
                 int iResX = static_cast<int>(ctx.rsi);
                 int iResY = static_cast<int>(ctx.rdi);
@@ -742,13 +760,6 @@ void HUD()
         static std::string objName;
         static std::string objOldName;
 
-        static SDK::UPause_00_C* pauseMenu = nullptr;
-        static SDK::UCommand_C* command = nullptr;
-        static SDK::UVR_Top_C* vrTop = nullptr;
-        static SDK::UCom_Window_01_C* comWindow = nullptr;
-        static SDK::UStatus_C* partyStatus = nullptr;
-        static SDK::UAreaMap_C* map = nullptr;
-
         spdlog::info("HUD: Widgets: Address is {:s}+{:x}", sExeName.c_str(), HUDWidgetsScanResult - (std::uint8_t*)exeModule);
         static SafetyHookMid HUDWidgetsMidHook{};
         HUDWidgetsMidHook = safetyhook::create_mid(Memory::GetAbsolute(HUDWidgetsScanResult + 0x3),
@@ -762,42 +773,9 @@ void HUD()
                     // Only store the name of the object when it has changed
                     objName = obj->GetName();
 
+                    // Log spam
                     //spdlog::info("Obj = {}", objName);
                     //spdlog::info("Obj addr = {:x}", (uintptr_t)obj);
-
-                    // "Command_C", battle command list
-                    if (objName.contains("Command_C") && command != obj) {
-                        #ifdef _DEBUG
-                        spdlog::info("HUD: Widgets: Command: {}", objName);
-                        spdlog::info("HUD: Widgets: Command: Address: {:x}", (uintptr_t)obj);
-                        #endif
-
-                        // Cache address
-                        command = (SDK::UCommand_C*)obj;
-                    }
-
-                    // "Status_C", party status
-                    if (objName.contains("Status_C") && partyStatus != obj) {
-                        #ifdef _DEBUG
-                        spdlog::info("HUD: Widgets: Party Status: {}", objName);
-                        spdlog::info("HUD: Widgets: Party Status: Address: {:x}", (uintptr_t)obj);
-                        #endif
-
-                        // Cache address
-                        partyStatus = (SDK::UStatus_C*)obj;
-                    }
-
-                    if (objName.contains("AreaMap_C") && map != obj) {
-                        #ifdef _DEBUG
-                        spdlog::info("HUD: Widgets: Map: {}", objName);
-                        spdlog::info("HUD: Widgets: Map: Address: {:x}", (uintptr_t)obj);
-                        #endif
-
-                        // Cache address
-                        map = (SDK::UAreaMap_C*)obj;
-
-                        // TODO
-                    }
 
                     // "Pause_00_C", "simple" pause menu
                     if (objName.contains("Pause_00_C") && pauseMenu != obj) {
@@ -864,6 +842,42 @@ void HUD()
 
                         // TODO
                     }
+
+                    /*
+                    // "Command_C", battle command list
+                    if (objName.contains("Command_C") && command != obj) {
+                        #ifdef _DEBUG
+                        spdlog::info("HUD: Widgets: Command: {}", objName);
+                        spdlog::info("HUD: Widgets: Command: Address: {:x}", (uintptr_t)obj);
+                        #endif
+
+                        // Cache address
+                        command = (SDK::UCommand_C*)obj;
+                    }
+                    */
+
+                    // "Status_C", party status
+                    if (objName.contains("Status_C") && partyStatus != obj) {
+                        #ifdef _DEBUG
+                        spdlog::info("HUD: Widgets: Party Status: {}", objName);
+                        spdlog::info("HUD: Widgets: Party Status: Address: {:x}", (uintptr_t)obj);
+                        #endif
+
+                        // Cache address
+                        partyStatus = (SDK::UStatus_C*)obj;
+                    }
+
+                    if (objName.contains("AreaMap_C") && map != obj) {
+                        #ifdef _DEBUG
+                        spdlog::info("HUD: Widgets: Map: {}", objName);
+                        spdlog::info("HUD: Widgets: Map: Address: {:x}", (uintptr_t)obj);
+                        #endif
+
+                        // Cache address
+                        map = (SDK::UAreaMap_C*)obj;
+
+                        // TODO
+                    }
                 }
             });
     }
@@ -893,6 +907,38 @@ void Misc()
         }
         else {
             spdlog::error("Framerate Limit: Pattern scan failed.");
+        }
+    }
+
+    if (fSubtitleScale != 1.00f) {
+        // Subtitles
+        std::uint8_t* ShowSubtitlesScanResult = Memory::PatternScan(exeModule, "48 8B ?? 48 85 ?? 0F 84 ?? ?? ?? ?? 0F ?? ?? ?? ?? EB ?? 45 33 ?? 44 39 ?? ?? ?? ?? ?? B2 03");
+        if (ShowSubtitlesScanResult) {
+            spdlog::info("Subtitles: Address is {:s}+{:x}", sExeName.c_str(), ShowSubtitlesScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid ShowSubtitlesMidHook{};
+            ShowSubtitlesMidHook = safetyhook::create_mid(ShowSubtitlesScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (ctx.rax) {
+                        SDK::UObject* obj = (SDK::UObject*)ctx.rax;
+
+                        if (UMGSubtitles != obj) {
+                            // Cache object
+                            UMGSubtitles = (SDK::USubtitle00_C*)obj;
+
+                            #ifdef _DEBUG
+                            spdlog::info("Subtitles: Widget: {}", obj->GetFullName());
+                            spdlog::info("Subtitles: Widgets Address: {:x}", (uintptr_t)obj);
+                            #endif
+
+                            // Apply size scale to subtitles
+                            if (UMGSubtitles->Txt_Lines)
+                                UMGSubtitles->Txt_Lines->GetParent()->SetRenderScale(SDK::FVector2D(fSubtitleScale, fSubtitleScale));
+                        }
+                    }
+                });
+        }
+        else {
+            spdlog::error("Subtitles: Pattern scan failed.");
         }
     }
 
