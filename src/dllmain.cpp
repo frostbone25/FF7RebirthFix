@@ -3,12 +3,8 @@
 
 #include "SDK/Engine_classes.hpp"
 #include "SDK/Pause_00_classes.hpp"
-#include "SDK/Command_classes.hpp"
-#include "SDK/VR_StartScreen_classes.hpp"
-#include "SDK/VR_Top_classes.hpp"
 #include "SDK/Com_Window_01_classes.hpp"
-#include "SDK/Status_classes.hpp"
-#include "SDK/AreaMap_classes.hpp"
+#include "SDK/AreaMap_TopBase_classes.hpp"
 #include "SDK/Subtitle00_classes.hpp"
 
 #include <spdlog/spdlog.h>
@@ -76,12 +72,9 @@ bool bHUDNeedsResize = false;
 
 // HUD Widgets
 SDK::USubtitle00_C* UMGSubtitles = nullptr;
-SDK::UPause_00_C* pauseMenu = nullptr;
-SDK::UCommand_C* command = nullptr;
-SDK::UVR_Top_C* vrTop = nullptr;
-SDK::UCom_Window_01_C* comWindow = nullptr;
-SDK::UStatus_C* partyStatus = nullptr;
-SDK::UAreaMap_C* map = nullptr;
+SDK::UPause_00_C* UMGPauseMenu = nullptr;
+SDK::UCom_Window_01_C* UMGComWindow = nullptr;
+SDK::UAreaMap_TopBase_C* UMGAreaMap = nullptr;
 
 void Logging()
 {
@@ -767,22 +760,18 @@ void HUD()
                     // Only store the name of the object when it has changed
                     objName = obj->GetName();
 
-                    // Log spam
-                    //spdlog::info("Obj = {}", objName);
-                    //spdlog::info("Obj addr = {:x}", (uintptr_t)obj);
-
                     // "Pause_00_C", "simple" pause menu
-                    if (objName.contains("Pause_00_C") && pauseMenu != obj) {
+                    if (objName.contains("Pause_00_C") && UMGPauseMenu != obj) {
                         #ifdef _DEBUG
                         spdlog::info("HUD: Widgets: Pause Menu: {}", objName);
                         spdlog::info("HUD: Widgets: Pause Menu: Address: {:x}", (uintptr_t)obj);
                         #endif
 
                         // Cache address
-                        pauseMenu = (SDK::UPause_00_C*)obj;
+                        UMGPauseMenu = (SDK::UPause_00_C*)obj;
 
                         // // Get root widget and panel slot(s)
-                        SDK::UEndCanvasPanel* rootWidget = (SDK::UEndCanvasPanel*)pauseMenu->WidgetTree->RootWidget;
+                        SDK::UEndCanvasPanel* rootWidget = (SDK::UEndCanvasPanel*)UMGPauseMenu->WidgetTree->RootWidget;
                         SDK::UEndCanvasPanelSlot* bgSlot = (SDK::UEndCanvasPanelSlot*)rootWidget->Slots[0];
                         SDK::UEndCanvasPanelSlot* gradientSlot = (SDK::UEndCanvasPanelSlot*)rootWidget->Slots[1];
 
@@ -801,15 +790,16 @@ void HUD()
                     }
 
                     // "Com_Window_01_C", menu dialog window
-                    if (objName.contains("Com_Window_01_C") && comWindow != obj) {
+                    if (objName.contains("Com_Window_01_C") && UMGComWindow != obj) {
                         #ifdef _DEBUG
                         spdlog::info("HUD: Widgets: Com Window: {}", objName);
                         spdlog::info("HUD: Widgets: Com Window: Address: {:x}", (uintptr_t)obj);
                         #endif
 
                         // Cache address
-                        comWindow = (SDK::UCom_Window_01_C*)obj;
+                        UMGComWindow = (SDK::UCom_Window_01_C*)obj;
 
+                        // Adjust to span the screen
                         if (fAspectRatio > fNativeAspect) {
                             *reinterpret_cast<float*>(ctx.rcx + 0x210) = -(fHUDWidthOffset / fHUDWidth);
                             *reinterpret_cast<float*>(ctx.rcx + 0x214) = 0.00f;
@@ -824,54 +814,30 @@ void HUD()
                         }
                     }
 
-                    /*
-                    // "VR_Top_C", Chadley VR combat sim
-                    if (objName.contains("VR_Top_C") && vrTop != obj) {
+                    // Area Map Top Base
+                    if (objName.contains("AreaMap_TopBase_C") && UMGAreaMap != obj) {
                         #ifdef _DEBUG
-                        spdlog::info("HUD: Widgets: VR Top: {}", objName);
-                        spdlog::info("HUD: Widgets: VR Top: Address: {:x}", (uintptr_t)obj);
+                        spdlog::info("HUD: Widgets: Area Map Top Base: {}", objName);
+                        spdlog::info("HUD: Widgets: Area Map Top Base: Address: {:x}", (uintptr_t)obj);
                         #endif
 
                         // Cache address
-                        vrTop = (SDK::UVR_Top_C*)obj;
+                        UMGAreaMap = (SDK::UAreaMap_TopBase_C*)obj;
 
-                        // TODO
+                        // Adjust to span the screen
+                        if (fAspectRatio > fNativeAspect) {
+                            *reinterpret_cast<float*>(ctx.rcx + 0x210) = -(fHUDWidthOffset / fHUDWidth);
+                            *reinterpret_cast<float*>(ctx.rcx + 0x214) = 0.00f;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x218) = 1.00f + (fHUDWidthOffset / fHUDWidth);
+                            *reinterpret_cast<float*>(ctx.rcx + 0x21C) = 1.00f;
+                        }
+                        else if (fAspectRatio < fNativeAspect) {
+                            *reinterpret_cast<float*>(ctx.rcx + 0x210) = 0.00f;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x214) = -(fHUDHeightOffset / fHUDHeight);
+                            *reinterpret_cast<float*>(ctx.rcx + 0x218) = 1.00f;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x21C) = 1.00f + (fHUDHeightOffset / fHUDHeight);
+                        }
                     }
-                    
-                    // "Command_C", battle command list
-                    if (objName.contains("Command_C") && command != obj) {
-                        #ifdef _DEBUG
-                        spdlog::info("HUD: Widgets: Command: {}", objName);
-                        spdlog::info("HUD: Widgets: Command: Address: {:x}", (uintptr_t)obj);
-                        #endif
-
-                        // Cache address
-                        command = (SDK::UCommand_C*)obj;
-                    }
-
-                    // "Status_C", party status
-                    if (objName.contains("Status_C") && partyStatus != obj) {
-                        #ifdef _DEBUG
-                        spdlog::info("HUD: Widgets: Party Status: {}", objName);
-                        spdlog::info("HUD: Widgets: Party Status: Address: {:x}", (uintptr_t)obj);
-                        #endif
-
-                        // Cache address
-                        partyStatus = (SDK::UStatus_C*)obj;
-                    }
-
-                    if (objName.contains("AreaMap_C") && map != obj) {
-                        #ifdef _DEBUG
-                        spdlog::info("HUD: Widgets: Map: {}", objName);
-                        spdlog::info("HUD: Widgets: Map: Address: {:x}", (uintptr_t)obj);
-                        #endif
-
-                        // Cache address
-                        map = (SDK::UAreaMap_C*)obj;
-
-                        // TODO
-                    }
-                     */
                 }
             });
     }
