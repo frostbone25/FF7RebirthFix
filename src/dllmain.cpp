@@ -67,7 +67,6 @@ int iCompositeLayerX = 1920;
 int iCompositeLayerY = 1080;
 int iPrevCompositeLayerX;
 int iPrevCompositeLayerY;
-bool bConsoleIsOpen = false;
 bool bMovieIsPlaying = false;
 int iScreenMode;
 bool bHUDNeedsResize = false;
@@ -878,10 +877,13 @@ void HUD()
                         // Cache address
                         UMGBattleTips = (SDK::UBattleTips_C*)obj;
 
-                        if (fAspectRatio > fNativeAspect)
-                            UMGBattleTips->Img_BlackFilter->SetRenderScale(SDK::FVector2D(fAspectMultiplier, 1.00f));
-                        else if (fAspectRatio < fNativeAspect)
-                            UMGBattleTips->Img_BlackFilter->SetRenderScale(SDK::FVector2D(1.00f, 1.00f / fAspectMultiplier));
+                        // Adjust background to span the screen
+                        if (UMGBattleTips->Img_BlackFilter) {
+                            if (fAspectRatio > fNativeAspect)
+                                UMGBattleTips->Img_BlackFilter->SetRenderScale(SDK::FVector2D(fAspectMultiplier, 1.00f));
+                            else if (fAspectRatio < fNativeAspect)
+                                UMGBattleTips->Img_BlackFilter->SetRenderScale(SDK::FVector2D(1.00f, 1.00f / fAspectMultiplier));
+                        }
                     }
                 }
             });
