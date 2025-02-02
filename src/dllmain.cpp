@@ -595,11 +595,12 @@ void HUD()
         }
 
         // Menu Highlights
-        std::uint8_t* HUDMenuHighlightsScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? C4 E2 ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 48 8D ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 FA ?? ?? ?? ??");
-        if (HUDMenuHighlightsScanResult) {
-            spdlog::info("HUD: Menu Highlights: Address is {:s}+{:x}", sExeName.c_str(), HUDMenuHighlightsScanResult - (std::uint8_t*)exeModule);
-            static SafetyHookMid HUDMenuHighlightsWidthMidHook{};
-            HUDMenuHighlightsWidthMidHook = safetyhook::create_mid(HUDMenuHighlightsScanResult,
+        std::uint8_t* HUDMenuHighlightsScaleScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? C4 E2 ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 48 8D ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
+        std::uint8_t* HUDMenuHighlightsOffsetScanResult = Memory::PatternScan(exeModule, "C5 ?? 58 ?? ?? C4 ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 FA 11 ?? ??");
+        if (HUDMenuHighlightsScaleScanResult && HUDMenuHighlightsOffsetScanResult) {
+            spdlog::info("HUD: Menu Highlights: Scale: Address is {:s}+{:x}", sExeName.c_str(), HUDMenuHighlightsScaleScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid HUDMenuHighlightsScaleMidHook{};
+            HUDMenuHighlightsScaleMidHook = safetyhook::create_mid(HUDMenuHighlightsScaleScanResult,
                 [](SafetyHookContext& ctx) {
                     if (fAspectRatio != fNativeAspect) {
                         ctx.xmm0.f32[0] -= fHUDWidthOffset;
@@ -607,8 +608,9 @@ void HUD()
                     }
                 });
 
-            static SafetyHookMid HUDMenuHighlightsHeightMidHook{};
-            HUDMenuHighlightsHeightMidHook = safetyhook::create_mid(HUDMenuHighlightsScanResult + 0x25,
+            spdlog::info("HUD: Menu Highlights: Offset: Address is {:s}+{:x}", sExeName.c_str(), HUDMenuHighlightsOffsetScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid HUDMenuHighlightsOffsetMidHook{};
+            HUDMenuHighlightsOffsetMidHook = safetyhook::create_mid(HUDMenuHighlightsOffsetScanResult,
                 [](SafetyHookContext& ctx) {
                     if (fAspectRatio != fNativeAspect) {
                         ctx.xmm0.f32[0] -= fHUDHeightOffset;
@@ -616,7 +618,7 @@ void HUD()
                 });
         }
         else {
-            spdlog::error("HUD: Menu Highlights: Pattern scan failed.");
+            spdlog::error("HUD: Menu Highlights: Pattern scan(s) failed.");
         }
 
         // Map
@@ -712,13 +714,13 @@ void HUD()
 
     if (bFixMovies) {
         // Movies
-        std::uint8_t* HideMovieScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? EB ?? 33 ?? 48 39 ?? ?? ?? ?? ?? 74 ?? C3");
-        std::uint8_t* ShowMovieScanResult = Memory::PatternScan(exeModule, "E8 ?? ?? ?? ?? 48 8B ?? ?? ?? 48 83 ?? ?? 5F C3 E8 ?? ?? ?? ?? EB ?? 33 ?? 48 39 ?? ?? ?? ?? ?? 74 ?? C3");
+        std::uint8_t* HideMovieScanResult = Memory::PatternScan(exeModule, "83 ?? ?? 00 80 ?? ?? ?? ?? ?? 00 C6 ?? ?? ?? ?? ?? 00 0F 85 ?? ?? ?? ?? 48 83 ?? ?? 5B C3");
+        std::uint8_t* ShowMovieScanResult = Memory::PatternScan(exeModule, "C6 ?? ?? 01 4D ?? ?? 0F 84 ?? ?? ?? ?? 49 ?? ?? 4C 8D ?? ??");
         if (HideMovieScanResult && ShowMovieScanResult) {
             spdlog::info("HUD: Movie: Hide: Address is {:s}+{:x}", sExeName.c_str(), HideMovieScanResult - (std::uint8_t*)exeModule);
 
             static SafetyHookMid HideMovieMidHook{};
-            HideMovieMidHook = safetyhook::create_mid(Memory::GetAbsolute(HideMovieScanResult + 0x1),
+            HideMovieMidHook = safetyhook::create_mid(HideMovieScanResult,
                 [](SafetyHookContext& ctx) {
                     #ifdef _DEBUG
                     spdlog::info("EndMenu.HideMovie()");
@@ -728,7 +730,7 @@ void HUD()
 
             spdlog::info("HUD: Movie: Show: Address is {:s}+{:x}", sExeName.c_str(), ShowMovieScanResult - (std::uint8_t*)exeModule);
             static SafetyHookMid ShowMovieMidHook{};
-            ShowMovieMidHook = safetyhook::create_mid(Memory::GetAbsolute(ShowMovieScanResult + 0x1),
+            ShowMovieMidHook = safetyhook::create_mid(ShowMovieScanResult,
                 [](SafetyHookContext& ctx) {
                     #ifdef _DEBUG
                     spdlog::info("EndMenu.ShowMovie()");
@@ -897,14 +899,14 @@ void Misc()
 {
     if (fFramerateLimit != 120.00f) {
         // Replace 120 fps option with desired framerate limit
-        std::uint8_t* FramerateLimitScanResult = Memory::PatternScan(exeModule, "C5 F8 ?? ?? E9 ?? ?? ?? ?? B3 01 E9 ?? ?? ?? ?? B3 01 E9 ?? ?? ?? ??");
+        std::uint8_t* FramerateLimitScanResult = Memory::PatternScan(exeModule, "B8 ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 ?? ?? 48 8B ?? 48 8D ?? ?? ?? ?? ?? C5 F2 ?? ??");
         if (FramerateLimitScanResult) {
             spdlog::info("Framerate Limit: Address is {:s}+{:x}", sExeName.c_str(), FramerateLimitScanResult - (std::uint8_t*)exeModule);
             static SafetyHookMid FramerateLimitMidHook{};
             FramerateLimitMidHook = safetyhook::create_mid(FramerateLimitScanResult,
                 [](SafetyHookContext& ctx) {
                     // 120 fps option
-                    if (ctx.rbp == (int)8) {
+                    if (ctx.xmm6.f32[0] >= 119.00f && ctx.xmm6.f32[0] <= 121.00f) {
                         ctx.xmm6.f32[0] = fFramerateLimit;
                         #ifdef _DEBUG
                         spdlog::info("Framerate Limit: Set 120 fps option to {:.4f} fps", fFramerateLimit);
