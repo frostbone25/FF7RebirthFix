@@ -594,13 +594,12 @@ void HUD()
             spdlog::error("HUD: Size: Pattern scan failed.");
         }
 
-        // Menu Highlights
-        std::uint8_t* HUDMenuHighlightsScaleScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? C4 E2 ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 48 8D ?? ?? C5 ?? ?? ?? C5 ?? ?? ??");
-        std::uint8_t* HUDMenuHighlightsOffsetScanResult = Memory::PatternScan(exeModule, "C5 ?? 58 ?? ?? C4 ?? ?? ?? ?? ?? ?? C5 ?? ?? ?? C5 FA 11 ?? ??");
-        if (HUDMenuHighlightsScaleScanResult && HUDMenuHighlightsOffsetScanResult) {
-            spdlog::info("HUD: Menu Highlights: Scale: Address is {:s}+{:x}", sExeName.c_str(), HUDMenuHighlightsScaleScanResult - (std::uint8_t*)exeModule);
-            static SafetyHookMid HUDMenuHighlightsScaleMidHook{};
-            HUDMenuHighlightsScaleMidHook = safetyhook::create_mid(HUDMenuHighlightsScaleScanResult,
+        // Menu Highlights (Steam)
+        std::uint8_t* SteamHUDMenuHighlightsScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? C4 E2 ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 48 8D ?? ?? C5 ?? ?? ?? C5 ?? ?? ?? C5 FA ?? ?? ?? ??");
+        if (SteamHUDMenuHighlightsScanResult) {
+            spdlog::info("HUD: Menu Highlights (Steam): Address is {:s}+{:x}", sExeName.c_str(), SteamHUDMenuHighlightsScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid SteamHUDMenuHighlightsWidthMidHook{};
+            SteamHUDMenuHighlightsWidthMidHook = safetyhook::create_mid(SteamHUDMenuHighlightsScanResult,
                 [](SafetyHookContext& ctx) {
                     if (fAspectRatio != fNativeAspect) {
                         ctx.xmm0.f32[0] -= fHUDWidthOffset;
@@ -608,9 +607,8 @@ void HUD()
                     }
                 });
 
-            spdlog::info("HUD: Menu Highlights: Offset: Address is {:s}+{:x}", sExeName.c_str(), HUDMenuHighlightsOffsetScanResult - (std::uint8_t*)exeModule);
-            static SafetyHookMid HUDMenuHighlightsOffsetMidHook{};
-            HUDMenuHighlightsOffsetMidHook = safetyhook::create_mid(HUDMenuHighlightsOffsetScanResult,
+            static SafetyHookMid SteamHUDMenuHighlightsHeightMidHook{};
+            SteamHUDMenuHighlightsHeightMidHook = safetyhook::create_mid(SteamHUDMenuHighlightsScanResult + 0x25,
                 [](SafetyHookContext& ctx) {
                     if (fAspectRatio != fNativeAspect) {
                         ctx.xmm0.f32[0] -= fHUDHeightOffset;
@@ -618,7 +616,32 @@ void HUD()
                 });
         }
         else {
-            spdlog::error("HUD: Menu Highlights: Pattern scan(s) failed.");
+            spdlog::error("HUD: Menu Highlights (Steam): Pattern scan failed.");
+
+            // Menu Highlights (Epic)
+            std::uint8_t* EpicHUDMenuHighlightsScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? C4 E2 ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 48 8D ?? ?? C5 EA ?? ??");
+            if (EpicHUDMenuHighlightsScanResult) {
+                spdlog::info("HUD: Menu Highlights (Epic): Address is {:s}+{:x}", sExeName.c_str(), EpicHUDMenuHighlightsScanResult - (std::uint8_t*)exeModule);
+                static SafetyHookMid EpicHUDMenuHighlightsWidthMidHook{};
+                EpicHUDMenuHighlightsWidthMidHook = safetyhook::create_mid(EpicHUDMenuHighlightsScanResult,
+                    [](SafetyHookContext& ctx) {
+                        if (fAspectRatio != fNativeAspect) {
+                            ctx.xmm0.f32[0] -= fHUDWidthOffset;
+                            ctx.xmm5.f32[0] = 1.00f / fHUDScale;
+                        }
+                    });
+
+                static SafetyHookMid EpicHUDMenuHighlightsHeightMidHook{};
+                EpicHUDMenuHighlightsHeightMidHook = safetyhook::create_mid(EpicHUDMenuHighlightsScanResult + 0x21,
+                    [](SafetyHookContext& ctx) {
+                        if (fAspectRatio != fNativeAspect) {
+                            ctx.xmm2.f32[0] -= fHUDHeightOffset;
+                        }
+                    });
+            }
+            else {
+                spdlog::error("HUD: Menu Highlights (Epic): Pattern scan failed.");
+            }
         }
 
         // Map
@@ -714,28 +737,25 @@ void HUD()
 
     if (bFixMovies) {
         // Movies
-        std::uint8_t* HideMovieScanResult = Memory::PatternScan(exeModule, "83 ?? ?? 00 80 ?? ?? ?? ?? ?? 00 C6 ?? ?? ?? ?? ?? 00 0F 85 ?? ?? ?? ?? 48 83 ?? ?? 5B C3");
-        std::uint8_t* ShowMovieScanResult = Memory::PatternScan(exeModule, "C6 ?? ?? 01 4D ?? ?? 0F 84 ?? ?? ?? ?? 49 ?? ?? 4C 8D ?? ??");
-        if (HideMovieScanResult && ShowMovieScanResult) {
-            spdlog::info("HUD: Movie: Hide: Address is {:s}+{:x}", sExeName.c_str(), HideMovieScanResult - (std::uint8_t*)exeModule);
-
-            static SafetyHookMid HideMovieMidHook{};
-            HideMovieMidHook = safetyhook::create_mid(HideMovieScanResult,
-                [](SafetyHookContext& ctx) {
-                    #ifdef _DEBUG
-                    spdlog::info("EndMenu.HideMovie()");
-                    #endif
-                    bMovieIsPlaying = false;
-                });
-
-            spdlog::info("HUD: Movie: Show: Address is {:s}+{:x}", sExeName.c_str(), ShowMovieScanResult - (std::uint8_t*)exeModule);
+        std::uint8_t* ShowMovieScanResult = Memory::PatternScan(exeModule, "4C 8B ?? 48 8B ?? 48 8B ?? E8 ?? ?? ?? ?? 48 8B ?? ?? ?? 48 83 ?? ?? 5F C3 E8 ?? ?? ?? ?? EB ??");
+        if (ShowMovieScanResult) {
+            spdlog::info("HUD: Movie: Address is {:s}+{:x}", sExeName.c_str(), ShowMovieScanResult - (std::uint8_t*)exeModule);
             static SafetyHookMid ShowMovieMidHook{};
-            ShowMovieMidHook = safetyhook::create_mid(ShowMovieScanResult,
+            ShowMovieMidHook = safetyhook::create_mid(Memory::GetAbsolute(ShowMovieScanResult + 0xA),
                 [](SafetyHookContext& ctx) {
                     #ifdef _DEBUG
                     spdlog::info("EndMenu.ShowMovie()");
                     #endif
                     bMovieIsPlaying = true;
+                });
+
+            static SafetyHookMid HideMovieMidHook{};
+            HideMovieMidHook = safetyhook::create_mid(Memory::GetAbsolute(ShowMovieScanResult + 0x1A),
+                [](SafetyHookContext& ctx) {
+                    #ifdef _DEBUG
+                    spdlog::info("EndMenu.HideMovie()");
+                    #endif
+                    bMovieIsPlaying = false;
                 });
         }
         else {
@@ -907,7 +927,7 @@ void Misc()
                 [](SafetyHookContext& ctx) {
                     // 120 fps option
                     if (ctx.xmm6.f32[0] >= 119.00f && ctx.xmm6.f32[0] <= 121.00f) {
-                        ctx.xmm6.f32[0] = fFramerateLimit;
+                        ctx.xmm1.f32[0] = fFramerateLimit;
                         #ifdef _DEBUG
                         spdlog::info("Framerate Limit: Set 120 fps option to {:.4f} fps", fFramerateLimit);
                         #endif
