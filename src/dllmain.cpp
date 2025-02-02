@@ -483,7 +483,7 @@ void AspectRatioFOV()
 
             spdlog::info("Gameplay FOV: Other: Address is {:s}+{:x}", sExeName.c_str(), GameplayFOVOtherScanResult - (std::uint8_t*)exeModule);
             static SafetyHookMid GameplayFOVOtherMidHook{};
-            GameplayFOVOtherMidHook = safetyhook::create_mid(GameplayFOVOtherScanResult,
+            GameplayFOVOtherMidHook = safetyhook::create_mid(GameplayFOVOtherScanResult + 0x2,
                 [](SafetyHookContext& ctx) {
                     auto CamType = static_cast<SDK::EEndCameraOperatorType>(ctx.r13);
 
