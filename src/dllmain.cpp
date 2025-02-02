@@ -471,33 +471,31 @@ void AspectRatioFOV()
 
     if (!bGlobalFOVMulti && fFOVMulti != 1.00f) {
         // Gameplay FOV
-        std::uint8_t* GameplayFOVScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? C5 CA ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? 45 ?? ??");
-        if (GameplayFOVScanResult) {
-            spdlog::info("Gameplay FOV: Address is {:s}+{:x}", sExeName.c_str(), GameplayFOVScanResult - (std::uint8_t*)exeModule);
+        std::uint8_t* GameplayFOVScanResult = Memory::PatternScan(exeModule, "C5 FA ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? 45 ?? ?? 49 ?? ?? BE ?? ?? ?? ?? 48 8B ?? ?? ?? ?? ?? 48 8B ?? ?? ??");
+        std::uint8_t* GameplayFOVOtherScanResult = Memory::PatternScan(exeModule, "74 ?? C4 ?? ?? ?? ?? ?? EB ?? C4 ?? ?? ?? ?? ?? C4 ?? ?? ?? ?? ?? C4 ?? ?? ?? ?? C4 ?? ?? ?? ?? ?? 41 ?? ??");
+        if (GameplayFOVScanResult && GameplayFOVOtherScanResult) {
+            spdlog::info("Gameplay FOV: Normal: Address is {:s}+{:x}", sExeName.c_str(), GameplayFOVScanResult - (std::uint8_t*)exeModule);
             static SafetyHookMid GameplayFOVMidHook{};
             GameplayFOVMidHook = safetyhook::create_mid(GameplayFOVScanResult,
                 [](SafetyHookContext& ctx) {
-                    ctx.xmm0.f32[0] *= fFOVMulti;
-                });
-        }
-        else {
-            spdlog::error("Gameplay FOV: Pattern scan failed.");
-        }
+                    auto CamType = static_cast<SDK::EEndCameraOperatorType>(ctx.r13);
 
-        // Chocobo FOV
-        std::uint8_t* ChocoboFOVScanResult = Memory::PatternScan(exeModule, "89 ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? E8 ?? ?? ?? ?? 44 ?? ?? ?? 75 ?? E8 ?? ?? ?? ??");
-        if (ChocoboFOVScanResult) {
-            spdlog::info("Gameplay FOV: Chocobo: Address is {:s}+{:x}", sExeName.c_str(), ChocoboFOVScanResult - (std::uint8_t*)exeModule);
-            static SafetyHookMid ChocoboFOVMidHook{};
-            ChocoboFOVMidHook = safetyhook::create_mid(ChocoboFOVScanResult,
+                    if (CamType == SDK::EEndCameraOperatorType::Field || CamType == SDK::EEndCameraOperatorType::Battle)
+                        ctx.xmm0.f32[0] *= fFOVMulti;
+                });
+
+            spdlog::info("Gameplay FOV: Other: Address is {:s}+{:x}", sExeName.c_str(), GameplayFOVOtherScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid GameplayFOVOtherMidHook{};
+            GameplayFOVOtherMidHook = safetyhook::create_mid(GameplayFOVOtherScanResult,
                 [](SafetyHookContext& ctx) {
-                    float fov = *reinterpret_cast<float*>(&ctx.rax);
-                    fov *= fFOVMulti;
-                    ctx.rax = *(uint32_t*)&fov;
+                    auto CamType = static_cast<SDK::EEndCameraOperatorType>(ctx.r13);
+
+                    if (CamType == SDK::EEndCameraOperatorType::Field || CamType == SDK::EEndCameraOperatorType::Battle)
+                        ctx.xmm0.f32[0] *= fFOVMulti;
                 });
         }
         else {
-            spdlog::error("Gameplay FOV: Chocobo: Pattern scan failed.");
+            spdlog::error("Gameplay FOV: Pattern scan(s) failed.");
         }
     }
 }
@@ -826,6 +824,7 @@ void HUD()
                         }
                     }
 
+                    /*
                     // "VR_Top_C", Chadley VR combat sim
                     if (objName.contains("VR_Top_C") && vrTop != obj) {
                         #ifdef _DEBUG
@@ -838,8 +837,7 @@ void HUD()
 
                         // TODO
                     }
-
-                    /*
+                    
                     // "Command_C", battle command list
                     if (objName.contains("Command_C") && command != obj) {
                         #ifdef _DEBUG
@@ -850,7 +848,6 @@ void HUD()
                         // Cache address
                         command = (SDK::UCommand_C*)obj;
                     }
-                    */
 
                     // "Status_C", party status
                     if (objName.contains("Status_C") && partyStatus != obj) {
@@ -874,6 +871,7 @@ void HUD()
 
                         // TODO
                     }
+                     */
                 }
             });
     }
