@@ -5,6 +5,8 @@
 #include "SDK/Pause_00_classes.hpp"
 #include "SDK/Com_Window_01_classes.hpp"
 #include "SDK/AreaMap_TopBase_classes.hpp"
+#include "SDK/VR_Top_classes.hpp"
+#include "SDK/BattleTips_classes.hpp"
 #include "SDK/Subtitle00_classes.hpp"
 
 #include <spdlog/spdlog.h>
@@ -75,6 +77,8 @@ SDK::USubtitle00_C* UMGSubtitles = nullptr;
 SDK::UPause_00_C* UMGPauseMenu = nullptr;
 SDK::UCom_Window_01_C* UMGComWindow = nullptr;
 SDK::UAreaMap_TopBase_C* UMGAreaMap = nullptr;
+SDK::UVR_Top_C* UMGVRTop = nullptr;
+SDK::UBattleTips_C* UMGBattleTips = nullptr;
 
 void Logging()
 {
@@ -814,7 +818,7 @@ void HUD()
                         }
                     }
 
-                    // Area Map Top Base
+                    // "AreaMap_TopBase_C", area map (a.k.a the thing that comes up when you press tab) base layer
                     if (objName.contains("AreaMap_TopBase_C") && UMGAreaMap != obj) {
                         #ifdef _DEBUG
                         spdlog::info("HUD: Widgets: Area Map Top Base: {}", objName);
@@ -837,6 +841,47 @@ void HUD()
                             *reinterpret_cast<float*>(ctx.rcx + 0x218) = 1.00f;
                             *reinterpret_cast<float*>(ctx.rcx + 0x21C) = 1.00f + (fHUDHeightOffset / fHUDHeight);
                         }
+                    }
+
+                    // "VR_Top_C", Chadley combat simulator menu
+                    if (objName.contains("VR_Top_C") && UMGVRTop != obj) {
+                        #ifdef _DEBUG
+                        spdlog::info("HUD: Widgets: VR Top: {}", objName);
+                        spdlog::info("HUD: Widgets: VR Top: Address: {:x}", (uintptr_t)obj);
+                        #endif
+
+                        // Cache address
+                        UMGVRTop = (SDK::UVR_Top_C*)obj;
+
+                        // Adjust to span the screen
+                        if (fAspectRatio > fNativeAspect) {
+                            *reinterpret_cast<float*>(ctx.rcx + 0x210) = -(fHUDWidthOffset / fHUDWidth);
+                            *reinterpret_cast<float*>(ctx.rcx + 0x214) = 0.00f;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x218) = 1.00f + (fHUDWidthOffset / fHUDWidth);
+                            *reinterpret_cast<float*>(ctx.rcx + 0x21C) = 1.00f;
+                        }
+                        else if (fAspectRatio < fNativeAspect) {
+                            *reinterpret_cast<float*>(ctx.rcx + 0x210) = 0.00f;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x214) = -(fHUDHeightOffset / fHUDHeight);
+                            *reinterpret_cast<float*>(ctx.rcx + 0x218) = 1.00f;
+                            *reinterpret_cast<float*>(ctx.rcx + 0x21C) = 1.00f + (fHUDHeightOffset / fHUDHeight);
+                        }
+                    }
+
+                    // "BattleTips_C", tutorial windows
+                    if (objName.contains("BattleTips_C") && UMGBattleTips != obj) {
+                        #ifdef _DEBUG
+                        spdlog::info("HUD: Widgets: Battle Tips: {}", objName);
+                        spdlog::info("HUD: Widgets: Battle Tips: Address: {:x}", (uintptr_t)obj);
+                        #endif
+
+                        // Cache address
+                        UMGBattleTips = (SDK::UBattleTips_C*)obj;
+
+                        if (fAspectRatio > fNativeAspect)
+                            UMGBattleTips->Img_BlackFilter->SetRenderScale(SDK::FVector2D(fAspectMultiplier, 1.00f));
+                        else if (fAspectRatio < fNativeAspect)
+                            UMGBattleTips->Img_BlackFilter->SetRenderScale(SDK::FVector2D(1.00f, 1.00f / fAspectMultiplier));
                     }
                 }
             });
