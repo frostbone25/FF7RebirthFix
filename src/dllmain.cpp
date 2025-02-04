@@ -975,6 +975,46 @@ void Misc()
         }
     }
 
+    // Increase camera distance limits
+    std::uint8_t* OptionsMenuScanResult = Memory::PatternScan(exeModule, "49 ?? ?? EB ?? 48 8B ?? 48 8D ?? ?? 48 ?? ?? 48 ?? ?? 48 ?? ?? 0F 84 ?? ?? ?? ?? 85 ?? 0F 88 ?? ?? ?? ??");
+    if (OptionsMenuScanResult) {
+        spdlog::info("Options Menu: Address is {:s}+{:x}", sExeName.c_str(), OptionsMenuScanResult - (std::uint8_t*)exeModule);
+        static SafetyHookMid OptionsMenuMidHook{};
+        OptionsMenuMidHook = safetyhook::create_mid(OptionsMenuScanResult,
+            [](SafetyHookContext& ctx) {
+                if (ctx.rsi) {
+                    SDK::UObject* obj = (SDK::UObject*)ctx.rsi;
+
+                    if (obj->IsA(SDK::UEndNewOptionsMenu::StaticClass())) {
+                        auto optionsMenu = (SDK::UEndNewOptionsMenu*)obj;
+                        auto options = optionsMenu->_OptionItems;
+
+                        // Iterate over options
+                        for (UC::TPair<SDK::EMenuItemCategory, SDK::FOptionInfos>& option : options) {
+                            // Find camera options
+                            if (option.Key() == SDK::EMenuItemCategory::CameraController) {
+                                // Get option infos
+                                auto& optionInfos = option.Value().Infos;
+                                // Check if options are valid
+                                if (optionInfos.IsValidIndex(0) && optionInfos.IsValidIndex(1)) {
+                                    // Check if max value is unmodified
+                                    if (optionInfos[0].RangeInfo.MaxValue == 3) {
+                                        // Index 0 is Camera Distance: Out of Battle
+                                        optionInfos[0].RangeInfo.MaxValue = 10;
+                                        // Index 1 is Camera Distance: In Battle
+                                        optionInfos[1].RangeInfo.MaxValue = 10;
+                                    }
+                                }
+                            }
+                        }
+                    } 
+                }
+            });
+    }
+    else {
+        spdlog::error("Options Menu: Pattern scan failed.");
+    }
+
     /*
     static bool bHasSkippedIntro = false;
 
