@@ -914,7 +914,8 @@ void Misc()
     if (fFramerateLimit != 120.00f) {
         // Replace 120 fps option with desired framerate limit
         std::uint8_t* FramerateLimitScanResult = Memory::PatternScan(exeModule, "B8 ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 ?? ?? 48 8B ?? 48 8D ?? ?? ?? ?? ?? C5 F2 ?? ??");
-        if (FramerateLimitScanResult) {
+        std::uint8_t* FramerateLimitStringScanResult = Memory::PatternScan(exeModule, "24 00 6D 00 65 00 6E 00 75 00 5F 00 6F 00 70 00 74 00 69 00 6F 00 6E 00 73 00 5F 00 66 00 70 00 73 00 5F 00 31 00 32 00 30");
+        if (FramerateLimitScanResult && FramerateLimitStringScanResult) {
             spdlog::info("Framerate Limit: Address is {:s}+{:x}", sExeName.c_str(), FramerateLimitScanResult - (std::uint8_t*)exeModule);
             static SafetyHookMid FramerateLimitMidHook{};
             FramerateLimitMidHook = safetyhook::create_mid(FramerateLimitScanResult,
@@ -927,9 +928,18 @@ void Misc()
                         #endif
                     }
                 });
+
+            // Write new string for the 120fps option ($menu_options_fps_120)
+            const wchar_t* fpsString = L"$menu_options_fps_120";
+
+            DWORD oldProtect;
+            if (VirtualProtect(FramerateLimitStringScanResult, (std::wcslen(fpsString) + 1) * sizeof(wchar_t), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+                std::swprintf(reinterpret_cast<wchar_t*>(FramerateLimitStringScanResult), 41, L"%.0f fps", fFramerateLimit);
+                VirtualProtect(FramerateLimitStringScanResult, (std::wcslen(fpsString) + 1) * sizeof(wchar_t), oldProtect, &oldProtect);
+            }   
         }
         else {
-            spdlog::error("Framerate Limit: Pattern scan failed.");
+            spdlog::error("Framerate Limit: Pattern scan(s) failed.");
         }
     }
 
