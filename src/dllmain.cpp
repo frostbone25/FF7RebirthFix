@@ -467,25 +467,33 @@ void AspectRatioFOV()
 
     if (!bGlobalFOVMulti && fFOVMulti != 1.00f) {
         // Gameplay FOV
-        std::uint8_t* GameplayFOVScanResult = Memory::PatternScan(exeModule, "41 ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? 45 38 ?? ?? ?? ?? ?? 0F 84 ?? ?? ?? ??");
-        if (GameplayFOVScanResult) {
+        std::uint8_t* GameplayFOVScanResult = Memory::PatternScan(exeModule, "C5 ?? ?? ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? 45 8B ?? 49 8B ?? BE ?? ?? ?? ??");
+        std::uint8_t* GameplayFOVAltScanResult = Memory::PatternScan(exeModule, "C4 ?? ?? ?? ?? ?? C4 ?? ?? ?? ?? ?? C4 ?? ?? ?? ?? C4 ?? ?? ?? ?? ?? 41 ?? ?? C5 ?? ?? ?? ?? ?? ?? ?? 45 ?? ?? ?? ?? ?? ??");
+        if (GameplayFOVScanResult && GameplayFOVAltScanResult) {
             spdlog::info("Gameplay FOV: Address is {:s}+{:x}", sExeName.c_str(), GameplayFOVScanResult - (std::uint8_t*)exeModule);
             static SafetyHookMid GameplayFOVMidHook{};
             GameplayFOVMidHook = safetyhook::create_mid(GameplayFOVScanResult,
                 [](SafetyHookContext& ctx) {
-                    if (ctx.r13 && ctx.r14 && ctx.r15) {
+                    if (ctx.r13) {                       
                         auto CamType = static_cast<SDK::EEndCameraOperatorType>(ctx.r13);
+                        if (CamType == SDK::EEndCameraOperatorType::Field || CamType == SDK::EEndCameraOperatorType::Battle)
+                            ctx.xmm0.f32[0] *= fFOVMulti;                  
+                    }
+                });
 
-                        if (CamType == SDK::EEndCameraOperatorType::Field || CamType == SDK::EEndCameraOperatorType::Battle) {
-                            float fov = *reinterpret_cast<float*>(ctx.r14 + 0x90);
-                            fov *= fFOVMulti;
-                            *reinterpret_cast<float*>(ctx.r15 + 0x1C) = fov;
-                        }
+            spdlog::info("Gameplay FOV: Alt: Address is {:s}+{:x}", sExeName.c_str(), GameplayFOVAltScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid GameplayFOVAltMidHook{};
+            GameplayFOVAltMidHook = safetyhook::create_mid(GameplayFOVAltScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (ctx.r13) {
+                        auto CamType = static_cast<SDK::EEndCameraOperatorType>(ctx.r13);
+                        if (CamType == SDK::EEndCameraOperatorType::Field || CamType == SDK::EEndCameraOperatorType::Battle)
+                            ctx.xmm0.f32[0] *= fFOVMulti;
                     }
                 });
         }
         else {
-            spdlog::error("Gameplay FOV: Pattern scan failed.");
+            spdlog::error("Gameplay FOV: Pattern scan(s) failed.");
         }
     }
 }
