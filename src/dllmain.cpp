@@ -22,7 +22,7 @@ HMODULE thisModule;
 
 // Fix details
 std::string sFixName = "FF7RebirthFix";
-std::string sFixVersion = "0.0.9";
+std::string sFixVersion = "0.0.10";
 std::filesystem::path sFixPath;
 
 // Ini
