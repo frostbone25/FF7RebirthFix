@@ -3,7 +3,7 @@ name: Nightly Build
 on:
   push:
     branches:
-      - main
+      - master
   workflow_dispatch:
 
 defaults:
@@ -53,13 +53,13 @@ jobs:
         cd .\zip
         Compress-Archive -Path .\* -DestinationPath ..\${{ github.event.repository.name }}_nightly.zip
 
-    - name: Generate Changelog from Last 48 Hours
+    - name: Generate Changelog
       run: |
-        $since = (Get-Date).AddDays(-2).ToString("yyyy-MM-ddTHH:mm:ssZ")
+        $since = (Get-Date).AddDays(-1).ToString("yyyy-MM-ddTHH:mm:ssZ")
         git fetch --prune --unshallow 
         $changelog = git log --since="$since" --pretty=format:"- %s (%h)" | Out-String
-        if (-not $changelog) { $changelog = "No new commits in the last 48 hours." }
-        "### Latest Commits in Last 48 Hours`n$changelog" | Set-Content release_body.md
+        if (-not $changelog) { $changelog = "No new commits in the last 24 hours." }
+        "### Commits From the Last 24 Hours`n$changelog" | Set-Content release_body.md
 
     - uses: ncipollo/release-action@v1
       with:
