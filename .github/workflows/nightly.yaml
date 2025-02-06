@@ -1,8 +1,9 @@
 name: Nightly Build
 
 on:
-  schedule:
-    - cron: "0 */4 * * *"
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 defaults:
@@ -55,6 +56,7 @@ jobs:
     - name: Generate Changelog from Last 48 Hours
       run: |
         $since = (Get-Date).AddDays(-2).ToString("yyyy-MM-ddTHH:mm:ssZ")
+        git fetch --prune --unshallow 
         $changelog = git log --since="$since" --pretty=format:"- %s (%h)" | Out-String
         if (-not $changelog) { $changelog = "No new commits in the last 48 hours." }
         "### Latest Commits in Last 48 Hours`n$changelog" | Set-Content release_body.md
