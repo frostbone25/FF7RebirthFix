@@ -414,18 +414,6 @@ void AspectRatioFOV()
     }
 
     if (bFixAspect) {
-        // White screen bug with TAA
-        // TODO: This is kind of a hack solution. NSight/RenderDoc for more info?
-        std::uint8_t* WhiteScreenBugScanResult = Memory::PatternScan(exeModule, "C7 45 ?? 38 04 00 00 48 8D ?? ?? ?? ?? ?? 75 ?? 48 8D ?? ?? ?? ?? ?? 45 33 ??");
-        if (WhiteScreenBugScanResult) {
-            spdlog::info("White Screen Bug: Address is {:s}+{:x}", sExeName.c_str(), WhiteScreenBugScanResult - (std::uint8_t*)exeModule);
-            Memory::PatchBytes(WhiteScreenBugScanResult + 0x3, "\x39", 1);
-            spdlog::info("White Screen Bug: Patched instruction.");
-        }
-        else {
-            spdlog::error("White Screen Bug: Pattern scan failed.");
-        }
-
         // Minecart Minigame
         std::uint8_t* MinecartMinigameScanResult = Memory::PatternScan(exeModule, "48 8B ?? ?? ?? ?? ?? C5 FA ?? ?? C5 FA ?? ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? C5 F2 ?? ?? C5 F2 ?? ?? ?? ?? ?? ??");
         if (MinecartMinigameScanResult) {
@@ -450,25 +438,6 @@ void AspectRatioFOV()
         }
         else {
             spdlog::error("Minecart Minigame: Pattern scan failed.");
-        }
-    }
-
-    if (bAutoVignette || fVignetteStrength != 1.00f) {
-        // Vignette 
-        std::uint8_t* VignetteScanResult = Memory::PatternScan(exeModule, "4C 89 ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ?? 44 89 ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ??");
-        if (VignetteScanResult) {
-            spdlog::info("Vignette: Address is {:s}+{:x}", sExeName.c_str(), VignetteScanResult - (std::uint8_t*)exeModule);
-            static SafetyHookMid VignetteMidHook{};
-            VignetteMidHook = safetyhook::create_mid(VignetteScanResult,
-                [](SafetyHookContext& ctx) {
-                    if (!bAutoVignette)
-                        *reinterpret_cast<float*>(ctx.rbx + 0x464) = fVignetteStrength;
-                    else if (bAutoVignette && fAspectRatio > fNativeAspect)
-                        *reinterpret_cast<float*>(ctx.rbx + 0x464) = 1.00f / fAspectMultiplier;
-                });
-        }
-        else {
-            spdlog::error("Vignette: Pattern scan failed.");
         }
     }
 
@@ -946,6 +915,63 @@ void HUD()
     }
 }
 
+void Graphics()
+{
+    if (bFixAspect) {
+        // White screen bug with post-processing
+        std::uint8_t* WhiteScreenBugScanResult = Memory::PatternScan(exeModule, "41 ?? ?? ?? ?? ?? ?? 00 C7 ?? ?? 80 07 00 00 C7 ?? ?? 38 04 00 00 48 ?? ?? ?? ?? ?? ??");
+        if (WhiteScreenBugScanResult) {
+            spdlog::info("White Screen Bug: Address is {:s}+{:x}", sExeName.c_str(), WhiteScreenBugScanResult - (std::uint8_t*)exeModule);
+            Memory::PatchBytes(WhiteScreenBugScanResult + 0xB, "\x81", 1);
+            spdlog::info("White Screen Bug: Patched instruction.");
+        }
+        else {
+            spdlog::error("White Screen Bug: Pattern scan failed.");
+        }
+    }
+
+    if (bAutoVignette || fVignetteStrength != 1.00f) {
+        // Vignette 
+        std::uint8_t* VignetteScanResult = Memory::PatternScan(exeModule, "4C 89 ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ?? 44 89 ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ??");
+        if (VignetteScanResult) {
+            spdlog::info("Vignette: Address is {:s}+{:x}", sExeName.c_str(), VignetteScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid VignetteMidHook{};
+            VignetteMidHook = safetyhook::create_mid(VignetteScanResult,
+                [](SafetyHookContext& ctx) {
+                    if (!bAutoVignette)
+                        *reinterpret_cast<float*>(ctx.rbx + 0x464) = fVignetteStrength;
+                    else if (bAutoVignette && fAspectRatio > fNativeAspect)
+                        *reinterpret_cast<float*>(ctx.rbx + 0x464) = 1.00f / fAspectMultiplier;
+                });
+        }
+        else {
+            spdlog::error("Vignette: Pattern scan failed.");
+        }
+    }
+
+    if (bShadowQuality) {
+        // CSM splits
+        std::uint8_t* ShadowCascadeSettingsScanResult = Memory::PatternScan(exeModule, "85 ?? 41 0F ?? ?? 89 ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 89 ?? ?? ?? ?? ??");
+        if (ShadowCascadeSettingsScanResult) {
+            spdlog::info("Shadow Cascade Settings: Address is {:s}+{:x}", sExeName.c_str(), ShadowCascadeSettingsScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid ShadowCascadeSettingsMidHook{};
+            ShadowCascadeSettingsMidHook = safetyhook::create_mid(ShadowCascadeSettingsScanResult + 0x1E,
+                [](SafetyHookContext& ctx) {
+                    float splitNear = *reinterpret_cast<float*>(&ctx.rax);
+
+                    // If near split distance is 500, change it to 1000
+                    if (splitNear >= 499.00f && splitNear <= 501.00f) {
+                        splitNear = 1000.00f;
+                        ctx.rax = *reinterpret_cast<uintptr_t*>(&splitNear);
+                    }
+                });
+        }
+        else {
+            spdlog::error("Shadow Cascade Settings: Pattern scan failed.");
+        }
+    }
+}
+
 void Misc()
 {
     if (fFramerateLimit != 120.00f) {
@@ -1052,28 +1078,6 @@ void Misc()
         spdlog::error("Options Menu: Pattern scan failed.");
     }
 
-    if (bShadowQuality) {
-        // CSM splits
-        std::uint8_t* ShadowCascadeSettingsScanResult = Memory::PatternScan(exeModule, "85 ?? 41 0F ?? ?? 89 ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 89 ?? ?? ?? ?? ??");
-        if (ShadowCascadeSettingsScanResult) {
-            spdlog::info("Shadow Cascade Settings: Address is {:s}+{:x}", sExeName.c_str(), ShadowCascadeSettingsScanResult - (std::uint8_t*)exeModule);
-            static SafetyHookMid ShadowCascadeSettingsMidHook{};
-            ShadowCascadeSettingsMidHook = safetyhook::create_mid(ShadowCascadeSettingsScanResult + 0x1E,
-                [](SafetyHookContext& ctx) {
-                    float splitNear = *reinterpret_cast<float*>(&ctx.rax);
-
-                    // If near split distance is 500, change it to 1000
-                    if (splitNear >= 499.00f && splitNear <= 501.00f) {
-                        splitNear = 1000.00f;
-                        ctx.rax = *reinterpret_cast<uintptr_t*>(&splitNear);
-                    }
-                });
-        }
-        else {
-            spdlog::error("Shadow Cascade Settings: Pattern scan failed.");
-        }
-    }
-
     /*
     static bool bHasSkippedIntro = false;
 
@@ -1129,6 +1133,7 @@ DWORD __stdcall Main(void*)
     CurrentResolution();
     AspectRatioFOV();
     HUD();
+    Graphics();
     Misc();
 
     return true;
