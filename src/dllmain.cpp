@@ -8,6 +8,7 @@
 #include "SDK/VR_Top_classes.hpp"
 #include "SDK/BattleTips_classes.hpp"
 #include "SDK/Subtitle00_classes.hpp"
+#include "SDK/MainMenu_Top_Window_classes.hpp"
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -78,6 +79,7 @@ SDK::UCom_Window_01_C* UMGComWindow = nullptr;
 SDK::UAreaMap_TopBase_C* UMGAreaMap = nullptr;
 SDK::UVR_Top_C* UMGVRTop = nullptr;
 SDK::UBattleTips_C* UMGBattleTips = nullptr;
+SDK::UMainMenu_Top_Window_C* UMGMainMenu = nullptr;
 
 void Logging()
 {
@@ -907,6 +909,28 @@ void HUD()
                                 UMGBattleTips->Img_BlackFilter->SetRenderScale(SDK::FVector2D(fAspectMultiplier, 1.00f));
                             else if (fAspectRatio < fNativeAspect)
                                 UMGBattleTips->Img_BlackFilter->SetRenderScale(SDK::FVector2D(1.00f, 1.00f / fAspectMultiplier));
+                        }
+                    }
+
+                    // "MainMenu_Top_Window_C", Main Menu
+                    if (objName.contains("MainMenu_Top_Window_C") && UMGMainMenu != obj) {
+                        #ifdef _DEBUG
+                        spdlog::info("HUD: Widgets: Main Menu: {}", objName);
+                        spdlog::info("HUD: Widgets: Main Menu: Address: {:x}", (uintptr_t)obj);
+                        #endif
+
+                        // Cache address
+                        UMGMainMenu = (SDK::UMainMenu_Top_Window_C*)obj;
+
+                        // Adjust left menu gradient
+                        if (fAspectRatio > fNativeAspect) {
+                            auto* panel = UMGMainMenu->TopContent2->EndCanvasPanel_0;
+                            if (panel->Slots.IsValidIndex(0)) {
+                                auto* leftMenuGradient = (SDK::UEndCanvasPanelSlot*)panel->Slots[0];
+                                auto offsets = leftMenuGradient->GetOffsets();
+                                offsets.LEFT = -10.00f - (((1080.00f * fAspectRatio) - 1920.00f) / 2.00f);
+                                leftMenuGradient->SetOffsets(offsets);
+                            }
                         }
                     }
                 }
