@@ -1047,6 +1047,26 @@ void Misc()
         spdlog::error("Options Menu: Pattern scan failed.");
     }
 
+    // CSM splits
+    std::uint8_t* ShadowCascadeSettingsScanResult = Memory::PatternScan(exeModule, "85 ?? 41 0F ?? ?? 89 ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 89 ?? ?? ?? ?? ??");
+    if (ShadowCascadeSettingsScanResult) {
+        spdlog::info("Shadow Cascade Settings: Address is {:s}+{:x}", sExeName.c_str(), ShadowCascadeSettingsScanResult - (std::uint8_t*)exeModule);
+        static SafetyHookMid ShadowCascadeSettingsMidHook{};
+        ShadowCascadeSettingsMidHook = safetyhook::create_mid(ShadowCascadeSettingsScanResult + 0x1E,
+            [](SafetyHookContext& ctx) {
+                float splitNear = *reinterpret_cast<float*>(&ctx.rax);
+
+                // If near split distance is 500, change it to 1000
+                if (splitNear >= 499.00f && splitNear <= 501.00f) {
+                    splitNear = 1000.00f;
+                    ctx.rax = *reinterpret_cast<uintptr_t*>(&splitNear);
+                }
+            });
+    }
+    else {
+        spdlog::error("Shadow Cascade Settings: Pattern scan failed.");
+    }
+
     /*
     static bool bHasSkippedIntro = false;
 
