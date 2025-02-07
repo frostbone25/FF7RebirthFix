@@ -10,6 +10,7 @@ This is an ASI plugin for for Final Fantasy VII Rebirth that adds ultrawide/narr
 - Adjust framerate limit option.
 - Disable/adjust vignette.
 - Adjust the size of subtitles.
+- Improve shadow quality.
 
 ### Ultrawide/Narrower
 - Support for ultrawide or narrower displays with correct FOV.
