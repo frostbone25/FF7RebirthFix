@@ -934,25 +934,24 @@ void Graphics()
         }
     }
 
-    if (bAutoVignette || fVignetteStrength != 1.00f) {
-        // Vignette 
-        std::uint8_t* VignetteScanResult = Memory::PatternScan(exeModule, "4C 89 ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ?? 44 89 ?? ?? ?? ?? ?? C5 FA ?? ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ??");
-        if (VignetteScanResult) {
-            spdlog::info("Vignette: Address is {:s}+{:x}", sExeName.c_str(), VignetteScanResult - (std::uint8_t*)exeModule);
-            static SafetyHookMid VignetteMidHook{};
-            VignetteMidHook = safetyhook::create_mid(VignetteScanResult,
-                [](SafetyHookContext& ctx) {
-                    if (!bAutoVignette)
-                        *reinterpret_cast<float*>(ctx.rbx + 0x464) = fVignetteStrength;
-                    else if (bAutoVignette && fAspectRatio > fNativeAspect)
-                        *reinterpret_cast<float*>(ctx.rbx + 0x464) = 1.00f / fAspectMultiplier;
-                });
-        }
-        else {
-            spdlog::error("Vignette: Pattern scan failed.");
-        }
-    }
+    // Post Processing 
+    std::uint8_t* PostProcessingScanResult = Memory::PatternScan(exeModule, "80 ?? ?? FE C5 ?? ?? 48 8B ?? ?? ?? 48 8B ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? 48 83 ?? ??");
+    if (PostProcessingScanResult) {
+        spdlog::info("Post Processing: Address is {:s}+{:x}", sExeName.c_str(), PostProcessingScanResult - (std::uint8_t*)exeModule);
+        static SafetyHookMid PostProcessingMidHook{};
+        PostProcessingMidHook = safetyhook::create_mid(PostProcessingScanResult,
+            [](SafetyHookContext& ctx) {
+                SDK::FPostProcessSettings* PP = (SDK::FPostProcessSettings*)ctx.rbx;
 
+                if (!bAutoVignette && fVignetteStrength != 1.00f)
+                    PP->LensVignetteIntensity = fVignetteStrength;
+                else if (bAutoVignette && fAspectRatio > fNativeAspect)
+                    PP->LensVignetteIntensity = 1.00f / fAspectMultiplier;
+            });
+    }
+    else {
+        spdlog::error("Post Processing: Pattern scan failed.");
+    }
 
     if (iShadowResolution != 2048 || bShadowDistTweak) {
         // Cascaded shadow map settings
