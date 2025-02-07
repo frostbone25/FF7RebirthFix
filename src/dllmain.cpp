@@ -934,23 +934,25 @@ void Graphics()
         }
     }
 
-    // Post Processing 
-    std::uint8_t* PostProcessingScanResult = Memory::PatternScan(exeModule, "80 ?? ?? FE C5 ?? ?? 48 8B ?? ?? ?? 48 8B ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? 48 83 ?? ??");
-    if (PostProcessingScanResult) {
-        spdlog::info("Post Processing: Address is {:s}+{:x}", sExeName.c_str(), PostProcessingScanResult - (std::uint8_t*)exeModule);
-        static SafetyHookMid PostProcessingMidHook{};
-        PostProcessingMidHook = safetyhook::create_mid(PostProcessingScanResult,
-            [](SafetyHookContext& ctx) {
-                SDK::FPostProcessSettings* PP = (SDK::FPostProcessSettings*)ctx.rbx;
+    if (bAutoVignette || fVignetteStrength != 1.00f) {
+        // Post Processing 
+        std::uint8_t* PostProcessingScanResult = Memory::PatternScan(exeModule, "80 ?? ?? FE C5 ?? ?? 48 8B ?? ?? ?? 48 8B ?? ?? ?? 48 8B ?? ?? ?? C5 ?? ?? ?? ?? ?? 48 83 ?? ??");
+        if (PostProcessingScanResult) {
+            spdlog::info("Post Processing: Address is {:s}+{:x}", sExeName.c_str(), PostProcessingScanResult - (std::uint8_t*)exeModule);
+            static SafetyHookMid PostProcessingMidHook{};
+            PostProcessingMidHook = safetyhook::create_mid(PostProcessingScanResult,
+                [](SafetyHookContext& ctx) {
+                    SDK::FPostProcessSettings* PP = (SDK::FPostProcessSettings*)ctx.rbx;
 
-                if (!bAutoVignette && fVignetteStrength != 1.00f)
-                    PP->LensVignetteIntensity = fVignetteStrength;
-                else if (bAutoVignette && fAspectRatio > fNativeAspect)
-                    PP->LensVignetteIntensity = 1.00f / fAspectMultiplier;
-            });
-    }
-    else {
-        spdlog::error("Post Processing: Pattern scan failed.");
+                    if (!bAutoVignette && fVignetteStrength != 1.00f)
+                        PP->LensVignetteIntensity = fVignetteStrength;
+                    else if (bAutoVignette && fAspectRatio > fNativeAspect)
+                        PP->LensVignetteIntensity = 1.00f / fAspectMultiplier;
+                });
+        }
+        else {
+            spdlog::error("Post Processing: Pattern scan failed.");
+        }
     }
 
     if (iShadowResolution != 2048 || bShadowDistTweak) {
@@ -971,9 +973,9 @@ void Graphics()
                         // Adjust near split
                         float splitNear = *reinterpret_cast<float*>(&ctx.rax);
 
-                        // If near split distance is 500, change it to 2000
+                        // If near split distance is 500, change it to 1500
                         if (splitNear >= 499.00f && splitNear <= 501.00f) {
-                            splitNear = 2000.00f;
+                            splitNear = 1500.00f;
                             ctx.rax = *reinterpret_cast<uintptr_t*>(&splitNear);
                         }
                     }
@@ -986,9 +988,9 @@ void Graphics()
                         // Adjust mid split
                         float splitMid = *reinterpret_cast<float*>(&ctx.rax);
 
-                        // If mid split distance is 5000, change it to 7500
+                        // If mid split distance is 5000, change it to 7000
                         if (splitMid >= 4999.00f && splitMid <= 5001.00f) {
-                            splitMid = 7500.00f;
+                            splitMid = 7000.00f;
                             ctx.rax = *reinterpret_cast<uintptr_t*>(&splitMid);
                         }
                     }
