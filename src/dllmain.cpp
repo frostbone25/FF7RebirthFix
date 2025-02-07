@@ -60,7 +60,8 @@ float fHUDResScale;
 int iCustomResX;
 int iCustomResY;
 float fSubtitleScale;
-bool bShadowQuality;
+bool bShadowDistTweak;
+int iShadowResolution;
 
 // Variables
 int iCurrentResX;
@@ -162,12 +163,14 @@ void Configuration()
 
     inipp::get_value(ini.sections["Vignette"], "Auto", bAutoVignette);
     inipp::get_value(ini.sections["Vignette"], "Strength", fVignetteStrength);
-    inipp::get_value(ini.sections["Shadow Quality"], "Enabled", bShadowQuality);
+    inipp::get_value(ini.sections["Shadow Quality"], "Resolution", iShadowResolution);
+    inipp::get_value(ini.sections["Shadow Quality"], "TweakDistances", bShadowDistTweak);
 
     // Clamp settings to avoid breaking things
     fHUDResScale = std::clamp(fHUDResScale, 0.00f, 3.00f);
     fVignetteStrength = std::clamp(fVignetteStrength, 0.00f, 1.00f);
     fSubtitleScale = std::clamp(fSubtitleScale, 0.100f, 2.00f);
+    iShadowResolution = std::clamp(iShadowResolution, 64, 16384);
 
     // Log ini parse
     spdlog_confparse(fFramerateLimit);
@@ -184,7 +187,8 @@ void Configuration()
 
     spdlog_confparse(bAutoVignette);
     spdlog_confparse(fVignetteStrength);
-    spdlog_confparse(bShadowQuality);
+    spdlog_confparse(iShadowResolution);
+    spdlog_confparse(bShadowDistTweak);
 
     spdlog::info("----------");
 }
@@ -949,20 +953,45 @@ void Graphics()
         }
     }
 
-    if (bShadowQuality) {
-        // CSM splits
+
+    if (iShadowResolution != 2048 || bShadowDistTweak) {
+        // Cascaded shadow map settings
         std::uint8_t* ShadowCascadeSettingsScanResult = Memory::PatternScan(exeModule, "85 ?? 41 0F ?? ?? 89 ?? ?? ?? ?? ?? 8B ?? ?? ?? ?? ?? 89 ?? ?? ?? ?? ??");
         if (ShadowCascadeSettingsScanResult) {
             spdlog::info("Shadow Cascade Settings: Address is {:s}+{:x}", sExeName.c_str(), ShadowCascadeSettingsScanResult - (std::uint8_t*)exeModule);
-            static SafetyHookMid ShadowCascadeSettingsMidHook{};
-            ShadowCascadeSettingsMidHook = safetyhook::create_mid(ShadowCascadeSettingsScanResult + 0x1E,
+            static SafetyHookMid SplitNearMidHook{};
+            SplitNearMidHook = safetyhook::create_mid(ShadowCascadeSettingsScanResult + 0x1E,
                 [](SafetyHookContext& ctx) {
-                    float splitNear = *reinterpret_cast<float*>(&ctx.rax);
+                    if (iShadowResolution != 2048 && SDK::UWorld::GetWorld()) {
+                        // Set shadow resolution
+                        std::wstring csmResCvar = L"r.Shadow.MaxCSMResolution " + std::to_wstring(iShadowResolution);
+                        SDK::UKismetSystemLibrary::ExecuteConsoleCommand(SDK::UWorld::GetWorld(), csmResCvar.c_str(), nullptr);
+                    }
 
-                    // If near split distance is 500, change it to 1000
-                    if (splitNear >= 499.00f && splitNear <= 501.00f) {
-                        splitNear = 1000.00f;
-                        ctx.rax = *reinterpret_cast<uintptr_t*>(&splitNear);
+                    if (bShadowDistTweak) {
+                        // Adjust near split
+                        float splitNear = *reinterpret_cast<float*>(&ctx.rax);
+
+                        // If near split distance is 500, change it to 2000
+                        if (splitNear >= 499.00f && splitNear <= 501.00f) {
+                            splitNear = 2000.00f;
+                            ctx.rax = *reinterpret_cast<uintptr_t*>(&splitNear);
+                        }
+                    }
+                });
+
+            static SafetyHookMid SplitMidMidHook{};
+            SplitMidMidHook = safetyhook::create_mid(ShadowCascadeSettingsScanResult + 0x2A,
+                [](SafetyHookContext& ctx) {
+                    if (bShadowDistTweak) {
+                        // Adjust mid split
+                        float splitMid = *reinterpret_cast<float*>(&ctx.rax);
+
+                        // If mid split distance is 5000, change it to 7500
+                        if (splitMid >= 4999.00f && splitMid <= 5001.00f) {
+                            splitMid = 7500.00f;
+                            ctx.rax = *reinterpret_cast<uintptr_t*>(&splitMid);
+                        }
                     }
                 });
         }
