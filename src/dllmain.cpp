@@ -61,6 +61,8 @@ int iCustomResX;
 int iCustomResY;
 float fSubtitleScale;
 bool bShadowDistTweak;
+float fCSMSplitNear = 1500.00f;
+float fCSMSplitMid = 7000.00f;
 int iShadowResolution;
 
 // Variables
@@ -166,11 +168,14 @@ void Configuration()
     inipp::get_value(ini.sections["Shadow Quality"], "Resolution", iShadowResolution);
     inipp::get_value(ini.sections["Shadow Quality"], "TweakDistances", bShadowDistTweak);
 
+    inipp::get_value(ini.sections["Shadow Quality"], "CascadeSplitNear", fCSMSplitNear);
+    inipp::get_value(ini.sections["Shadow Quality"], "CascadeSplitMid", fCSMSplitMid);
+
     // Clamp settings to avoid breaking things
     fHUDResScale = std::clamp(fHUDResScale, 0.00f, 3.00f);
     fVignetteStrength = std::clamp(fVignetteStrength, 0.00f, 1.00f);
     fSubtitleScale = std::clamp(fSubtitleScale, 0.100f, 2.00f);
-    iShadowResolution = std::clamp(iShadowResolution, 64, 16384);
+    //iShadowResolution = std::clamp(iShadowResolution, 64, 16384);
 
     // Log ini parse
     spdlog_confparse(fFramerateLimit);
@@ -189,6 +194,9 @@ void Configuration()
     spdlog_confparse(fVignetteStrength);
     spdlog_confparse(iShadowResolution);
     spdlog_confparse(bShadowDistTweak);
+
+    spdlog_confparse(fCSMSplitNear);
+    spdlog_confparse(fCSMSplitMid);
 
     spdlog::info("----------");
 }
@@ -457,7 +465,9 @@ void AspectRatioFOV()
                     if (ctx.r13) {                       
                         auto CamType = static_cast<SDK::EEndCameraOperatorType>(ctx.r13);
                         if (CamType == SDK::EEndCameraOperatorType::Field || CamType == SDK::EEndCameraOperatorType::Battle)
-                            ctx.xmm0.f32[0] *= fFOVMulti;                  
+                        {
+                            ctx.xmm0.f32[0] *= fFOVMulti;
+                        }          
                     }
                 });
 
@@ -468,7 +478,9 @@ void AspectRatioFOV()
                     if (ctx.r13) {
                         auto CamType = static_cast<SDK::EEndCameraOperatorType>(ctx.r13);
                         if (CamType == SDK::EEndCameraOperatorType::Field || CamType == SDK::EEndCameraOperatorType::Battle)
+                        {
                             ctx.xmm0.f32[0] *= fFOVMulti;
+                        }
                     }
                 });
         }
@@ -948,6 +960,13 @@ void Graphics()
                         PP->LensVignetteIntensity = fVignetteStrength;
                     else if (bAutoVignette && fAspectRatio > fNativeAspect)
                         PP->LensVignetteIntensity = 1.00f / fAspectMultiplier;
+
+                    PP->bOverride_ScreenSpaceReflectionIntensity = 1;
+                    PP->bOverride_ScreenSpaceReflectionQuality = 1;
+                    PP->bOverride_ScreenSpaceReflectionMaxRoughness = 1;
+                    PP->ScreenSpaceReflectionIntensity = 0.0f;
+                    PP->ScreenSpaceReflectionMaxRoughness = 100.0F;
+                    PP->ScreenSpaceReflectionQuality = 0.0f;
                 });
         }
         else {
@@ -963,10 +982,22 @@ void Graphics()
             static SafetyHookMid SplitNearMidHook{};
             SplitNearMidHook = safetyhook::create_mid(ShadowCascadeSettingsScanResult + 0x1E,
                 [](SafetyHookContext& ctx) {
-                    if (iShadowResolution != 2048 && SDK::UWorld::GetWorld()) {
-                        // Set shadow resolution
-                        std::wstring csmResCvar = L"r.Shadow.MaxCSMResolution " + std::to_wstring(iShadowResolution);
-                        SDK::UKismetSystemLibrary::ExecuteConsoleCommand(SDK::UWorld::GetWorld(), csmResCvar.c_str(), nullptr);
+                    if (SDK::UWorld::GetWorld())
+                    {
+                        if (iShadowResolution != 2048)
+                        {
+                            // Set shadow resolution
+                            std::wstring csmResCvar = L"r.Shadow.MaxCSMResolution " + std::to_wstring(iShadowResolution);
+                            SDK::UKismetSystemLibrary::ExecuteConsoleCommand(SDK::UWorld::GetWorld(), csmResCvar.c_str(), nullptr);
+                        }
+
+                        //max cascades
+                        std::wstring csmMaxCountCvar = L"r.Shadow.CSM.MaxCascades " + std::to_wstring(10);
+                        SDK::UKismetSystemLibrary::ExecuteConsoleCommand(SDK::UWorld::GetWorld(), csmMaxCountCvar.c_str(), nullptr);
+
+                        //transition scale
+                        std::wstring csmTransitionScaleCvar = L"r.Shadow.CSM.TransitionScale " + std::to_wstring(2);
+                        SDK::UKismetSystemLibrary::ExecuteConsoleCommand(SDK::UWorld::GetWorld(), csmTransitionScaleCvar.c_str(), nullptr);
                     }
 
                     if (bShadowDistTweak) {
@@ -974,10 +1005,11 @@ void Graphics()
                         float splitNear = *reinterpret_cast<float*>(&ctx.rax);
 
                         // If near split distance is 500, change it to 1500
-                        if (splitNear >= 499.00f && splitNear <= 501.00f) {
-                            splitNear = 1500.00f;
+                        //if (splitNear >= 499.00f && splitNear <= 501.00f) {
+                            //splitNear = 1500.00f;
+                            splitNear = fCSMSplitNear;
                             ctx.rax = *reinterpret_cast<uintptr_t*>(&splitNear);
-                        }
+                        //}
                     }
                 });
 
@@ -989,10 +1021,11 @@ void Graphics()
                         float splitMid = *reinterpret_cast<float*>(&ctx.rax);
 
                         // If mid split distance is 5000, change it to 7000
-                        if (splitMid >= 4999.00f && splitMid <= 5001.00f) {
-                            splitMid = 7000.00f;
+                        //if (splitMid >= 4999.00f && splitMid <= 5001.00f) {
+                            //splitMid = 7000.00f;
+                            splitMid = fCSMSplitMid;
                             ctx.rax = *reinterpret_cast<uintptr_t*>(&splitMid);
-                        }
+                        //}
                     }
                 });
         }
@@ -1093,9 +1126,17 @@ void Misc()
                                     // Check if max value is unmodified
                                     if (optionInfos[0].RangeInfo.MaxValue == 3) {
                                         // Index 0 is Camera Distance: Out of Battle
-                                        optionInfos[0].RangeInfo.MaxValue = 10;
+                                        optionInfos[0].RangeInfo.MaxValue = 100;
                                         // Index 1 is Camera Distance: In Battle
-                                        optionInfos[1].RangeInfo.MaxValue = 10;
+                                        optionInfos[1].RangeInfo.MaxValue = 100;
+                                    }
+
+                                    // Check if max value is unmodified
+                                    if (optionInfos[0].RangeInfo.MinValue == 1) {
+                                        // Index 0 is Camera Distance: Out of Battle
+                                        optionInfos[0].RangeInfo.MinValue = -100;
+                                        // Index 1 is Camera Distance: In Battle
+                                        optionInfos[1].RangeInfo.MinValue = -100;
                                     }
                                 }
                             }
